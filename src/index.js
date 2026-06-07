@@ -3,7 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-// SQLite DB initialises schema on require
+// JSON DB initialises on require
 const db = require('./db');
 
 const app = express();
@@ -11,20 +11,21 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../public')));
 
-// API Routes
+// ——— API routes FIRST (before static/catch-all) ———
 app.use('/api/players', require('./routes/players'));
 app.use('/api/sessions', require('./routes/sessions'));
 app.use('/api', require('./routes/results'));
 app.use('/api/leaderboard', require('./routes/leaderboard'));
 app.use('/api/changelog', require('./routes/changelog'));
 app.use('/api/admin', require('./routes/admin'));
-
-// Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
+app.get('/api/version', (req, res) => res.json({ version: 'LOWDB-v1', db: 'json-file' }));
 
-// Clean URL routing — serve correct HTML for each page
+// ——— Static files ———
+app.use(express.static(path.join(__dirname, '../public')));
+
+// ——— Clean URL routing (serve .html for extension-less paths) ———
 const pages = ['sessions', 'leaderboard', 'players', 'changelog', 'session', 'admin'];
 pages.forEach(page => {
   app.get(`/${page}`, (req, res) => {
@@ -32,13 +33,11 @@ pages.forEach(page => {
   });
 });
 
-// Fallback to index.html
+// ——— Fallback ———
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.get('/api/version', (req, res) => res.json({ version: 'LOWDB-v1', db: 'json-file' }));
-
 app.listen(PORT, () => {
-  console.log(`🃏 LOWDB BUILD — Wholesome ALL IN running on port ${PORT}`);
+  console.log(`🃏 Wholesome ALL IN — port ${PORT}`);
 });
