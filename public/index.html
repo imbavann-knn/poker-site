@@ -146,6 +146,32 @@
 .player-check-avatar{font-size:1.1rem;}.player-check-avatar img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,245,255,.3);}
 .player-check-name{font-weight:700;font-size:.88rem;}.player-check-alias{font-size:.7rem;color:var(--muted);}
 </style>
+<!-- I WANNA JOIN modal -->
+<div class="modal-overlay" id="modal-join" style="z-index:600;">
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <div>
+        <span class="modal-title">🙋 I Wanna Join!</span>
+        <div style="font-size:.72rem;color:var(--muted);margin-top:3px;font-weight:400;">Check to join · Uncheck to drop out</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('modal-join')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="joinCheckAll(true)">Select All</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="joinCheckAll(false)">Clear All</button>
+        <span id="join-count" style="margin-left:auto;font-family:'Orbitron',monospace;font-size:.78rem;color:var(--cyan);"></span>
+      </div>
+      <div id="join-slot-warning" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(255,230,0,.08);border:1px solid rgba(255,230,0,.3);font-size:.8rem;color:var(--yellow);border-radius:4px;"></div>
+      <div id="join-checklist" style="display:flex;flex-direction:column;gap:6px;max-height:360px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-join')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJoin()" style="background:linear-gradient(135deg,var(--pink),var(--purple));">Save Attendance ✓</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 <script src="/assets/js/api.js"></script>
 <script>
@@ -276,27 +302,65 @@ async function loadHome() {
     const next = upcoming[0];
 
     if (next) {
-      const countdown = getCountdown(next.date + 'T' + (next.time || '20:00') + ':00');
+      const MAX_SLOTS = 9;
+      const confirmed = next.attendee_count || 0;
+      const slotsLeft = Math.max(0, MAX_SLOTS - confirmed);
+      const slotsFull = confirmed >= 10;
+      const slotsOver = confirmed > MAX_SLOTS;
+      const slotColor = slotsFull ? 'var(--pink)' : slotsOver ? 'var(--yellow)' : confirmed >= 7 ? 'var(--yellow)' : 'var(--green)';
+      const slotText = slotsFull ? '🔴 FULL (10/10)' : slotsOver ? `⚠️ ${confirmed}/9 — overflow` : `${confirmed}/${MAX_SLOTS} spots filled · ${slotsLeft} left`;
+
+      window._nextSessionId = next.id;
+      window._nextSessionDT = next.date + 'T' + (next.time || '20:00') + ':00';
+
       nextEl.innerHTML = `
-        <div style="background:var(--card);border:1px solid var(--cyan-border);box-shadow:0 0 30px rgba(0,245,255,0.08);padding:24px 32px;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-items:stretch;">
-          <div style="padding:0 32px 0 0;border-right:1px solid var(--cyan-border);">
-            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Next Showdown</div>
-            <div style="font-family:'Bebas Neue',cursive;font-size:1.8rem;letter-spacing:.06em;">${formatDate(next.date)}</div>
-            <div style="font-size:.82rem;color:var(--muted);margin-top:4px;">${next.venue || 'TBD'} · $${next.blinds}</div>
+        <div style="background:var(--card);border:1px solid var(--cyan-border);box-shadow:0 0 30px rgba(0,245,255,0.08);">
+
+          <!-- TOP ROW: session info + countdown -->
+          <div style="display:flex;flex-wrap:wrap;align-items:stretch;border-bottom:1px solid var(--cyan-border);">
+
+            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:200px;">
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Next Showdown</div>
+              <div style="font-family:'Bebas Neue',cursive;font-size:1.7rem;letter-spacing:.06em;">${formatDate(next.date)}</div>
+              <div style="font-size:.8rem;color:var(--muted);margin-top:4px;">${next.venue || 'TBD'} · $${next.blinds}</div>
+            </div>
+
+            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:160px;">
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Host</div>
+              <div style="font-family:'Bebas Neue',cursive;font-size:1.7rem;">${next.host || 'TBD'}</div>
+            </div>
+
+            <!-- Slots -->
+            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:180px;">
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px;">Slots</div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+                ${Array.from({length:10},(_,i) => {
+                  const filled = i < confirmed;
+                  const isOver = i >= MAX_SLOTS;
+                  return `<div style="width:22px;height:22px;border-radius:3px;border:1px solid ${filled?(isOver?'var(--yellow)':'var(--cyan)'):'rgba(255,255,255,.12)'};background:${filled?(isOver?'rgba(255,230,0,.25)':'rgba(0,245,255,.2)'):'transparent'};transition:all .3s;"></div>`;
+                }).join('')}
+              </div>
+              <div style="font-size:.72rem;font-weight:700;color:${slotColor};">${slotText}</div>
+            </div>
+
+            <!-- Countdown -->
+            <div style="padding:22px 28px;flex:1;min-width:200px;">
+              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--yellow);margin-bottom:6px;">Countdown</div>
+              <div style="font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:var(--yellow);text-shadow:0 0 16px rgba(255,230,0,.5);letter-spacing:.05em;" id="cd-display">--·--·--·--</div>
+              <div style="font-size:.58rem;color:var(--muted);letter-spacing:.18em;margin-top:4px;">D · H · M · S</div>
+            </div>
           </div>
-          <div style="padding:0 32px;border-right:1px solid var(--cyan-border);">
-            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Host</div>
-            <div style="font-family:'Bebas Neue',cursive;font-size:1.8rem;">${next.host || 'TBD'}</div>
-            <div style="font-size:.82rem;color:var(--muted);margin-top:4px;">${next.attendee_count || 0} confirmed</div>
-          </div>
-          <div style="padding:0 32px;border-right:1px solid var(--cyan-border);">
-            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--yellow);margin-bottom:6px;">Countdown</div>
-            <div style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:var(--yellow);text-shadow:0 0 16px rgba(255,230,0,.5);" id="cd-display">${countdown}</div>
-            <div style="font-size:.6rem;color:var(--muted);letter-spacing:.2em;">D · H · M</div>
-          </div>
-          <div style="padding:0 0 0 32px;display:flex;align-items:center;gap:12px;">
-            <a href="/session?id=${next.id}" class="btn btn-outline btn-sm">View Details</a>
-            <a href="/session?id=${next.id}&enter_results=1" class="btn btn-green btn-sm">Enter Results ✓</a>
+
+          <!-- BOTTOM ROW: CTA + buttons -->
+          <div style="padding:16px 28px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:rgba(0,245,255,.03);">
+            <div>
+              <div style="font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:.1em;color:var(--white);">🎯 INDICATE YOUR ATTENDANCE NOW</div>
+              <div style="font-size:.72rem;color:var(--muted);margin-top:2px;">Let everyone know if you're in for the next session</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <a href="/session?id=${next.id}" class="btn btn-outline btn-sm">View Details</a>
+              <button class="btn btn-primary btn-sm" onclick="openJoinModal('${next.id}')" style="background:linear-gradient(135deg,var(--pink),var(--purple));box-shadow:0 0 20px rgba(255,45,135,.4);">🙋 I WANNA JOIN!</button>
+            </div>
           </div>
         </div>`;
     } else {
@@ -328,18 +392,125 @@ async function loadHome() {
 
 function getCountdown(dateTimeStr) {
   const diff = new Date(dateTimeStr) - new Date();
-  if (diff <= 0) return '00·00·00';
+  if (diff <= 0) return '00·00·00·00';
   const d = Math.floor(diff/86400000);
   const h = Math.floor((diff%86400000)/3600000);
   const m = Math.floor((diff%3600000)/60000);
-  return `${String(d).padStart(2,'0')}·${String(h).padStart(2,'0')}·${String(m).padStart(2,'0')}`;
+  const s = Math.floor((diff%60000)/1000);
+  return `${String(d).padStart(2,'0')}·${String(h).padStart(2,'0')}·${String(m).padStart(2,'0')}·${String(s).padStart(2,'0')}`;
 }
 
-loadHome();
+// Live countdown tick every second
 setInterval(() => {
   const el = document.getElementById('cd-display');
-  if (el) { /* recompute from stored data if needed */ }
-}, 60000);
+  const dt = window._nextSessionDT;
+  if (el && dt) el.textContent = getCountdown(dt);
+}, 1000);
+
+loadHome();
+
+// ——— I WANNA JOIN modal ———
+const MAX_SLOTS = 9;
+let joinSessionId = null;
+let joinCurrentAttendees = new Set();
+let joinAllPlayers = [];
+
+async function openJoinModal(sessionId) {
+  joinSessionId = sessionId;
+  try {
+    const [sessionData, players] = await Promise.all([
+      API.get('/sessions/' + sessionId),
+      API.get('/players'),
+    ]);
+    joinAllPlayers = players;
+    joinCurrentAttendees = new Set((sessionData.attendance || []).map(a => a.player_id));
+    const confirmed = joinCurrentAttendees.size;
+
+    const list = document.getElementById('join-checklist');
+    list.innerHTML = '';
+    players.forEach(p => {
+      const isIn = joinCurrentAttendees.has(p.id);
+      const row = document.createElement('div');
+      row.className = 'player-check-row' + (isIn ? ' checked' : '');
+      row.dataset.playerId = p.id;
+      const avatar = p.photo
+        ? `<img src="${p.photo}" alt="${p.name}">`
+        : `<span>${p.emoji || '♠'}</span>`;
+      row.innerHTML =
+        `<div class="player-check-box">${isIn ? '✓' : ''}</div>` +
+        `<div class="player-check-avatar">${avatar}</div>` +
+        `<div><div class="player-check-name">${p.name}</div>` +
+        `${p.alias ? `<div class="player-check-alias">"${p.alias}"</div>` : ''}</div>`;
+      row.addEventListener('click', () => {
+        const on = row.classList.toggle('checked');
+        row.querySelector('.player-check-box').textContent = on ? '✓' : '';
+        updateJoinCount();
+      });
+      list.appendChild(row);
+    });
+    updateJoinCount();
+    openModal('modal-join');
+  } catch(e) { showToast('Error loading session', 'error'); }
+}
+
+function updateJoinCount() {
+  const checked = document.querySelectorAll('#join-checklist .player-check-row.checked').length;
+  const el = document.getElementById('join-count');
+  if (el) el.textContent = checked + ' joining';
+  const warn = document.getElementById('join-slot-warning');
+  if (checked > MAX_SLOTS && warn) {
+    warn.style.display = 'block';
+    warn.textContent = `⚠️ ${checked}/${MAX_SLOTS} — you're over the ideal cap of ${MAX_SLOTS}. Maximum is 10.`;
+  } else if (checked >= 10 && warn) {
+    warn.style.display = 'block';
+    warn.textContent = `🔴 ${checked}/10 — session is at full capacity!`;
+  } else if (warn) {
+    warn.style.display = 'none';
+  }
+}
+
+function joinCheckAll(state) {
+  document.querySelectorAll('#join-checklist .player-check-row').forEach(r => {
+    r.classList.toggle('checked', state);
+    r.querySelector('.player-check-box').textContent = state ? '✓' : '';
+  });
+  updateJoinCount();
+}
+
+async function saveJoin() {
+  const checkedRows = document.querySelectorAll('#join-checklist .player-check-row');
+  const toAdd = [], toRemove = [];
+  checkedRows.forEach(row => {
+    const pid = row.dataset.playerId;
+    const isChecked = row.classList.contains('checked');
+    if (isChecked && !joinCurrentAttendees.has(pid)) toAdd.push(pid);
+    if (!isChecked && joinCurrentAttendees.has(pid)) toRemove.push(pid);
+  });
+  const total = document.querySelectorAll('#join-checklist .player-check-row.checked').length;
+  if (total > 10) return showToast('Maximum 10 players per session!', 'error');
+
+  const btn = document.querySelector('#modal-join .btn-primary');
+  btn.textContent = 'Saving...'; btn.disabled = true;
+  try {
+    for (const pid of toAdd) {
+      await API.post(`/sessions/${joinSessionId}/attendance`, { player_id: pid, added_by: 'Anonymous' });
+    }
+    for (const pid of toRemove) {
+      await fetch(`/api/sessions/${joinSessionId}/attendance/${pid}`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ editor_name: 'Anonymous' })
+      });
+    }
+    const changed = toAdd.length + toRemove.length;
+    showToast(changed ? `Updated! ${toAdd.length} joined, ${toRemove.length} dropped 🃏` : 'No changes made', 'success');
+    closeModal('modal-join');
+    setTimeout(() => loadHome(), 600); // refresh slot count
+  } catch(e) {
+    showToast(e.message, 'error');
+  } finally {
+    btn.textContent = 'Save Attendance ✓'; btn.disabled = false;
+  }
+}
 </script>
 </body>
 </html>
