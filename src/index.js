@@ -37,6 +37,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
+app.get('/api/version', (req, res) => res.json({ version: 'LOWDB-v1', db: 'json-file' }));
+
 app.listen(PORT, () => {
-  console.log(`🃏 Wholesome ALL IN running on port ${PORT}`);
+  console.log(`🃏 LOWDB BUILD — Wholesome ALL IN running on port ${PORT}`);
 });
