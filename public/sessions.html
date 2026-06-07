@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sessions — Wholesome ALL IN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="/" class="nav-logo"><span class="nav-logo-icon">♠</span><span class="nav-logo-text">Wholesome ALL IN</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li><li><a href="/sessions" class="active">Sessions</a></li>
+    <li><a href="/leaderboard">Leaderboard</a></li><li><a href="/players">Players</a></li>
+    <li><a href="/changelog">Changelog</a></li>
+  </ul>
+  <a href="#" class="nav-btn" onclick="openModal('modal-add-session');return false;">+ Add Session</a>
+</div></nav>
+
+<div class="page-wrap"><div class="container">
+  <div class="page-header">
+    <div class="page-header-tag">All Sessions</div>
+    <h1 class="page-title">Game <span class="gradient">History</span></h1>
+    <p class="page-subtitle">Every night of glory, heartbreak, and questionable bluffs.</p>
+  </div>
+
+  <!-- FILTER TABS -->
+  <div style="display:flex;gap:8px;margin-bottom:24px;">
+    <button class="btn btn-primary btn-sm filter-btn active" data-filter="all" onclick="setFilter('all',this)">All</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="planned" onclick="setFilter('planned',this)">Upcoming</button>
+    <button class="btn btn-ghost btn-sm filter-btn" data-filter="completed" onclick="setFilter('completed',this)">Completed</button>
+  </div>
+
+  <div id="sessions-list"></div>
+</div></div>
+
+<footer class="footer"><div class="footer-inner">
+  <div class="footer-logo">♠ Wholesome ALL IN</div>
+  <div class="footer-text">OPEN LEDGER · ANYONE MAY EDIT</div>
+</div></footer>
+
+<!-- ADD SESSION MODAL -->
+<div class="modal-overlay" id="modal-add-session">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add Session</span><button class="modal-close" onclick="closeModal('modal-add-session')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:18px;">Pick any past or future date — use this to log historical sessions too.</p>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Date *</label><input type="date" class="form-input" id="s-date"></div>
+        <div class="form-group"><label class="form-label">Time</label><input type="time" class="form-input" id="s-time" value="20:00"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Venue</label><input type="text" class="form-input" id="s-venue" placeholder="e.g. Marcus's Den"></div>
+        <div class="form-group"><label class="form-label">Host</label><input type="text" class="form-input" id="s-host" placeholder="e.g. Marcus"></div>
+      </div>
+      <div class="form-group"><label class="form-label">Blinds</label><select class="form-select" id="s-blinds" onchange="handleBlindsChange()"></select><input type="text" class="form-input mt-8" id="s-blinds-custom" placeholder="e.g. 0.50/1.00" style="display:none;"></div>
+      <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="s-notes" placeholder="Anything to note..."></textarea></div>
+      <div class="form-group"><label class="form-label">Your Name</label><input type="text" class="form-input" id="s-creator" placeholder="e.g. Eevann"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-session')">Cancel</button>
+      <button class="btn btn-primary" onclick="createSession()">Create ♠</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+document.getElementById('s-blinds').innerHTML = blindsSelect();
+function handleBlindsChange() {
+  document.getElementById('s-blinds-custom').style.display = document.getElementById('s-blinds').value === 'custom' ? 'block' : 'none';
+}
+
+let allSessions = [];
+let currentFilter = 'all';
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active','btn-primary'));
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.add('btn-ghost'));
+  btn.classList.add('active','btn-primary'); btn.classList.remove('btn-ghost');
+  renderSessions();
+}
+
+function renderSessions() {
+  const el = document.getElementById('sessions-list');
+  let filtered = allSessions;
+  if (currentFilter !== 'all') filtered = allSessions.filter(s => s.status === currentFilter);
+  filtered.sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (!filtered.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🃏</div><h3>No sessions found</h3><p>Add one using the button above.</p></div>';
+    return;
+  }
+  el.innerHTML = `<div class="grid-3">${filtered.map(s => `
+    <a href="/session?id=${s.id}" class="session-card">
+      <div class="session-card-date">${formatDate(s.date)} · ${s.time || ''}</div>
+      <div class="session-card-title">${s.venue || 'Game Night'}</div>
+      <div class="session-card-meta">${s.host ? 'Host: '+s.host+' · ' : ''}$${s.blinds} blinds</div>
+      <div class="session-card-meta" style="margin-top:4px;">${s.attendee_count || s.results_count || 0} players${s.notes ? ' · '+s.notes.slice(0,40) : ''}</div>
+      <div class="session-card-footer" style="margin-top:14px;">
+        <span class="pill pill-${s.status}">${s.status}</span>
+        ${s.status==='planned'?'<span style="font-size:.75rem;color:var(--cyan);">→ Enter Results</span>':''}
+      </div>
+    </a>`).join('')}</div>`;
+}
+
+async function createSession() {
+  const date = document.getElementById('s-date').value;
+  if (!date) return showToast('Date is required', 'error');
+  const blindsSel = document.getElementById('s-blinds').value;
+  const blinds = blindsSel === 'custom' ? document.getElementById('s-blinds-custom').value : blindsSel;
+  try {
+    const session = await API.post('/sessions', {
+      date, time: document.getElementById('s-time').value,
+      venue: document.getElementById('s-venue').value,
+      host: document.getElementById('s-host').value,
+      blinds, notes: document.getElementById('s-notes').value,
+      created_by: document.getElementById('s-creator').value || 'Anonymous',
+    });
+    showToast('Session created! 🃏', 'success');
+    closeModal('modal-add-session');
+    setTimeout(() => window.location.href = `/session?id=${session.id}`, 800);
+  } catch(err) { showToast(err.message, 'error'); }
+}
+
+async function init() {
+  try {
+    allSessions = await API.get('/sessions');
+    renderSessions();
+  } catch(e) { document.getElementById('sessions-list').innerHTML = '<div class="empty-state"><h3>Error loading sessions</h3></div>'; }
+}
+init();
+</script>
+</body>
+</html>

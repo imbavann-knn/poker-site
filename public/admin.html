@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Wholesome ALL IN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+<meta name="robots" content="noindex,nofollow">
+</head>
+<body>
+<div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="/" class="nav-logo"><span class="nav-logo-icon">♠</span><span class="nav-logo-text">Wholesome ALL IN</span></a>
+  <div style="font-size:.75rem;color:var(--pink);font-weight:700;letter-spacing:.12em;">⚠ ADMIN MODE</div>
+</div></nav>
+
+<div class="page-wrap"><div class="container">
+  <!-- AUTH GATE -->
+  <div id="auth-gate" style="max-width:400px;margin:80px auto;text-align:center;">
+    <div style="font-family:'Bebas Neue',cursive;font-size:2.5rem;letter-spacing:.08em;margin-bottom:8px;">Admin <span style="color:var(--pink)">Access</span></div>
+    <div style="color:var(--muted);font-size:.85rem;margin-bottom:28px;">This page is not linked anywhere. Enter the admin password to proceed.</div>
+    <div class="form-group"><input type="password" class="form-input" id="admin-pw" placeholder="Admin password" onkeydown="if(event.key==='Enter')checkAuth()"></div>
+    <button class="btn btn-primary" onclick="checkAuth()" style="width:100%;justify-content:center;">Unlock ♠</button>
+    <div id="auth-error" style="color:var(--pink);font-size:.82rem;margin-top:12px;"></div>
+  </div>
+
+  <!-- ADMIN PANEL (hidden until auth) -->
+  <div id="admin-panel" style="display:none;">
+    <div class="page-header">
+      <div class="page-header-tag">Admin Panel</div>
+      <h1 class="page-title">Nuke <span class="gradient">Zone</span></h1>
+      <p class="page-subtitle">With great power comes great responsibility. Be careful.</p>
+    </div>
+
+    <div class="grid-2 mb-24">
+      <!-- DELETE SESSION -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Delete Session</span><span class="card-badge card-badge-pink">DESTRUCTIVE</span></div>
+        <div class="card-body">
+          <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px;">Permanently delete a session and all its results.</p>
+          <div class="form-group"><label class="form-label">Select Session</label><select class="form-select" id="del-session-id"><option value="">Loading...</option></select></div>
+          <button class="btn btn-danger" onclick="deleteSession()">Delete Session</button>
+        </div>
+      </div>
+
+      <!-- DELETE PLAYER -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Delete Player</span><span class="card-badge card-badge-pink">DESTRUCTIVE</span></div>
+        <div class="card-body">
+          <p style="color:var(--muted);font-size:.82rem;margin-bottom:14px;">Permanently delete a player and all their data.</p>
+          <div class="form-group"><label class="form-label">Select Player</label><select class="form-select" id="del-player-id"><option value="">Loading...</option></select></div>
+          <button class="btn btn-danger" onclick="deletePlayer()">Delete Player</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHANGELOG ENTRIES -->
+    <div class="card mb-24">
+      <div class="card-header"><span class="card-title">Recent Changelog Entries</span><span class="card-badge card-badge-pink">Can Delete</span></div>
+      <div class="card-body" id="admin-changelog"></div>
+    </div>
+  </div>
+</div></div>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+let adminPw = '';
+
+function checkAuth() {
+  adminPw = document.getElementById('admin-pw').value;
+  if (!adminPw) return;
+  // Test with a lightweight call
+  document.getElementById('auth-error').textContent = '';
+  document.getElementById('auth-gate').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'block';
+  loadAdminData();
+}
+
+async function loadAdminData() {
+  try {
+    const [sessions, players, { entries }] = await Promise.all([
+      API.get('/sessions'),
+      API.get('/players'),
+      API.get('/changelog?limit=20'),
+    ]);
+
+    document.getElementById('del-session-id').innerHTML = sessions.map(s =>
+      `<option value="${s.id}">${formatDate(s.date)} — ${s.venue||'Game Night'} (${s.status})</option>`
+    ).join('');
+
+    document.getElementById('del-player-id').innerHTML = players.map(p =>
+      `<option value="${p.id}">${p.emoji||'♠'} ${p.name}${p.alias?' ('+p.alias+')':''}</option>`
+    ).join('');
+
+    document.getElementById('admin-changelog').innerHTML = entries.map(e => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:16px;">
+        <div>
+          <div style="font-size:.82rem;">${e.description||e.action+' '+e.entity_type}</div>
+          <div style="font-size:.7rem;color:var(--muted);">by ${e.editor_name} · ${timeAgo(e.created_at)}</div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="deleteChangelog('${e.id}')">Delete</button>
+      </div>`).join('');
+  } catch(e) { showToast('Error loading data', 'error'); }
+}
+
+async function deleteSession() {
+  const id = document.getElementById('del-session-id').value;
+  if (!id) return showToast('Select a session', 'error');
+  if (!confirm('⚠ Permanently delete this session and all results? This cannot be undone.')) return;
+  try {
+    await API.post('/admin/delete-session', { password: adminPw, session_id: id });
+    showToast('Session deleted', 'success');
+    setTimeout(() => loadAdminData(), 600);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deletePlayer() {
+  const id = document.getElementById('del-player-id').value;
+  if (!id) return showToast('Select a player', 'error');
+  if (!confirm('⚠ Permanently delete this player and all their data? This cannot be undone.')) return;
+  try {
+    await API.post('/admin/delete-player', { password: adminPw, player_id: id });
+    showToast('Player deleted', 'success');
+    setTimeout(() => loadAdminData(), 600);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteChangelog(id) {
+  if (!confirm('Delete this changelog entry?')) return;
+  try {
+    await API.post('/admin/delete-changelog', { password: adminPw, entry_id: id });
+    showToast('Entry deleted', 'success');
+    setTimeout(() => loadAdminData(), 400);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+</script>
+</body>
+</html>

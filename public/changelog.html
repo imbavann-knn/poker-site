@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Changelog — Wholesome ALL IN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="/" class="nav-logo"><span class="nav-logo-icon">♠</span><span class="nav-logo-text">Wholesome ALL IN</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li><li><a href="/sessions">Sessions</a></li>
+    <li><a href="/leaderboard">Leaderboard</a></li><li><a href="/players">Players</a></li>
+    <li><a href="/changelog" class="active">Changelog</a></li>
+  </ul>
+</div></nav>
+
+<div class="page-wrap"><div class="container">
+  <div class="page-header">
+    <div class="page-header-tag">Audit Trail</div>
+    <h1 class="page-title">Change<span class="gradient">log</span></h1>
+    <p class="page-subtitle">Every edit, every correction, every "oops I miscalculated" — fully logged.</p>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">All Changes</span>
+      <span class="card-badge card-badge-cyan" id="total-count">Loading...</span>
+    </div>
+    <div class="card-body" id="changelog-list"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+  </div>
+
+  <div style="text-align:center;margin-top:24px;" id="load-more-wrap" style="display:none;">
+    <button class="btn btn-ghost" onclick="loadMore()">Load More</button>
+  </div>
+</div></div>
+
+<footer class="footer"><div class="footer-inner">
+  <div class="footer-logo">♠ Wholesome ALL IN</div>
+  <div class="footer-text">FULL AUDIT TRAIL · ALL EDITS LOGGED</div>
+</div></footer>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+let offset = 0;
+const LIMIT = 30;
+let totalEntries = 0;
+let allEntries = [];
+
+const entityLabels = { player: '👤 Player', session: '🃏 Session', result: '💰 Result', attendance: '📋 Attendance' };
+const actionColors = { create: 'var(--green)', update: 'var(--yellow)', delete: 'var(--pink)' };
+const actionLabels = { create: 'Added', update: 'Edited', delete: 'Deleted' };
+
+function renderChangelog(entries) {
+  if (!entries.length) return '<div class="empty-state"><div class="icon">📋</div><h3>No changes yet</h3><p>All edits will appear here automatically.</p></div>';
+  return entries.map(e => `
+    <div class="cl-entry">
+      <div class="cl-icon" style="color:${actionColors[e.action]||'var(--muted)'};">${actionIcon(e.action)}</div>
+      <div class="cl-body">
+        <div class="cl-desc">
+          <span style="color:${actionColors[e.action]};font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;">${actionLabels[e.action]||e.action}</span>
+          <span style="margin:0 6px;color:var(--muted);">·</span>
+          <span style="font-size:.72rem;color:var(--muted);">${entityLabels[e.entity_type]||e.entity_type}</span>
+          <span style="margin:0 6px;color:var(--muted);">·</span>
+          ${e.description||''}
+        </div>
+        <div class="cl-meta">
+          by <span class="cl-who">${e.editor_name}</span>
+          ${e.old_value && e.new_value ? buildDiff(e.old_value, e.new_value) : ''}
+        </div>
+      </div>
+      <div class="cl-time">${timeAgo(e.created_at)}</div>
+    </div>`).join('');
+}
+
+function buildDiff(oldVal, newVal) {
+  if (typeof oldVal !== 'object' || typeof newVal !== 'object') return '';
+  const keys = [...new Set([...Object.keys(oldVal||{}), ...Object.keys(newVal||{})])];
+  const changes = keys.filter(k => oldVal[k] !== newVal[k] && k !== 'updated_at' && k !== 'created_at');
+  if (!changes.length) return '';
+  return ` · <span style="color:var(--muted);font-size:.7rem;">${changes.map(k => `${k}: <span style="color:var(--pink);">${oldVal[k]}</span> → <span style="color:var(--green);">${newVal[k]}</span>`).join(', ')}</span>`;
+}
+
+async function loadChangelog() {
+  try {
+    const { entries, total } = await API.get(`/changelog?limit=${LIMIT}&offset=${offset}`);
+    totalEntries = total;
+    allEntries = [...allEntries, ...entries];
+    document.getElementById('changelog-list').innerHTML = renderChangelog(allEntries);
+    document.getElementById('total-count').textContent = `${total} entries`;
+    const lmw = document.getElementById('load-more-wrap');
+    if (allEntries.length < total) {
+      lmw.style.display = 'block';
+    } else {
+      lmw.style.display = 'none';
+    }
+  } catch(e) {
+    document.getElementById('changelog-list').innerHTML = '<div class="empty-state"><h3>Error loading changelog</h3></div>';
+  }
+}
+
+async function loadMore() {
+  offset += LIMIT;
+  await loadChangelog();
+}
+
+loadChangelog();
+</script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Players — Wholesome ALL IN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="/" class="nav-logo"><span class="nav-logo-icon">♠</span><span class="nav-logo-text">Wholesome ALL IN</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li><li><a href="/sessions">Sessions</a></li>
+    <li><a href="/leaderboard">Leaderboard</a></li><li><a href="/players" class="active">Players</a></li>
+    <li><a href="/changelog">Changelog</a></li>
+  </ul>
+  <a href="#" class="nav-btn" onclick="openModal('modal-add-player');return false;">+ Add Player</a>
+</div></nav>
+
+<div class="page-wrap"><div class="container">
+  <div class="page-header">
+    <div class="page-header-tag">The Squad</div>
+    <h1 class="page-title">Our <span class="gradient">Players</span></h1>
+    <p class="page-subtitle">The good, the great, and the ones who keep us funded.</p>
+  </div>
+
+  <div id="players-grid"></div>
+</div></div>
+
+<footer class="footer"><div class="footer-inner">
+  <div class="footer-logo">♠ Wholesome ALL IN</div>
+  <div class="footer-text">ADD PLAYERS ANYTIME · NO LOGIN NEEDED</div>
+</div></footer>
+
+<!-- ADD PLAYER MODAL -->
+<div class="modal-overlay" id="modal-add-player">
+  <div class="modal">
+    <div class="modal-header"><span class="modal-title">Add New Player</span><button class="modal-close" onclick="closeModal('modal-add-player')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="p-name" placeholder="Full name"></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Nickname / Alias</label><input type="text" class="form-input" id="p-alias" placeholder='e.g. "The Surgeon"'></div>
+        <div class="form-group">
+          <label class="form-label">Emoji / Symbol</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;" id="emoji-picker">
+            ${['♠','♥','♦','♣','🃏','🎰','🤑','😎','👑','🦊','🐯','🔥','⚡','🌙','🎭','💎'].map(e => `<button type="button" onclick="selectEmoji('${e}')" class="emoji-btn" style="font-size:1.4rem;background:none;border:1px solid var(--border-subtle);width:38px;height:38px;cursor:pointer;transition:all .2s;">${e}</button>`).join('')}
+          </div>
+          <input type="text" class="form-input" id="p-emoji" placeholder="Or type custom..." value="♠">
+        </div>
+      </div>
+      <div class="form-group"><label class="form-label">Joined Date</label><input type="date" class="form-input" id="p-joined"></div>
+      <div class="form-group"><label class="form-label">Your Name (for changelog)</label><input type="text" class="form-input" id="p-creator" placeholder="e.g. Eevann"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-player')">Cancel</button>
+      <button class="btn btn-primary" onclick="addPlayer()">Add Player ♠</button>
+    </div>
+  </div>
+</div>
+
+<!-- PLAYER DETAIL MODAL -->
+<div class="modal-overlay" id="modal-player-detail">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-header">
+      <span class="modal-title" id="pd-title">Player</span>
+      <button class="modal-close" onclick="closeModal('modal-player-detail')">✕</button>
+    </div>
+    <div class="modal-body" id="pd-body"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+function selectEmoji(e) {
+  document.getElementById('p-emoji').value = e;
+  document.querySelectorAll('.emoji-btn').forEach(b => b.style.borderColor = 'var(--border-subtle)');
+  event.target.style.borderColor = 'var(--pink)';
+}
+
+async function addPlayer() {
+  const name = document.getElementById('p-name').value.trim();
+  if (!name) return showToast('Name is required', 'error');
+  try {
+    await API.post('/players', {
+      name, alias: document.getElementById('p-alias').value,
+      emoji: document.getElementById('p-emoji').value || '♠',
+      joined_date: document.getElementById('p-joined').value || null,
+      created_by: document.getElementById('p-creator').value || 'Anonymous',
+    });
+    showToast(`${name} added! 🎉`, 'success');
+    closeModal('modal-add-player');
+    setTimeout(() => location.reload(), 700);
+  } catch(err) { showToast(err.message, 'error'); }
+}
+
+async function openPlayerDetail(id) {
+  try {
+    const p = await API.get(`/players/${id}`);
+    const s = p.stats;
+    const winRate = s.sessions_played > 0 ? Math.round(s.wins / s.sessions_played * 100) : 0;
+    document.getElementById('pd-title').textContent = p.name;
+    document.getElementById('pd-body').innerHTML = `
+      <div style="text-align:center;margin-bottom:24px;">
+        <div class="player-hex" style="width:80px;height:80px;margin:0 auto 14px;font-size:2.5rem;">${p.emoji||'♠'}</div>
+        <div style="font-family:'Bebas Neue',cursive;font-size:2rem;letter-spacing:.06em;">${p.name}</div>
+        ${p.alias?`<div style="color:var(--muted);font-size:.9rem;margin-top:4px;">"${p.alias}"</div>`:''}
+        <div style="font-size:.72rem;color:var(--muted);margin-top:4px;letter-spacing:.15em;">Member since ${p.joined_date ? formatDate(p.joined_date) : '—'}</div>
+      </div>
+      <div class="stats-grid-3 mb-24" style="gap:10px;">
+        <div class="stat-box pink" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${formatMoney(s.total_profit)}</span><span class="stat-lbl">Career P/L</span></div>
+        <div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${s.sessions_played}</span><span class="stat-lbl">Sessions</span></div>
+        <div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${winRate}%</span><span class="stat-lbl">Win Rate</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:.82rem;">
+        <span style="color:var(--muted);">Best session: <span class="profit">${formatMoney(s.best_session)}</span></span>
+        <span style="color:var(--muted);">Worst session: <span class="loss">${formatMoney(s.worst_session)}</span></span>
+      </div>
+      ${p.history?.length ? `
+        <div style="font-size:.65rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>
+        <div style="max-height:200px;overflow-y:auto;">
+          ${p.history.map(h => `
+            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">
+              <span style="color:var(--muted);">${formatDate(h.date)} · ${h.venue||'Game Night'}</span>
+              <span class="${profitClass(h.profit_loss)}">${formatMoney(h.profit_loss)}</span>
+            </div>`).join('')}
+        </div>` : '<div style="color:var(--muted);text-align:center;padding:20px;">No sessions recorded yet.</div>'}
+    `;
+    openModal('modal-player-detail');
+  } catch(e) { showToast('Error loading player', 'error'); }
+}
+
+async function init() {
+  try {
+    const players = await API.get('/players');
+    const el = document.getElementById('players-grid');
+    if (!players.length) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">👥</div><h3>No players yet</h3><p>Add your squad using the button above!</p></div>`;
+      return;
+    }
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
+      ${players.map(p => {
+        const isPos = parseFloat(p.total_profit) >= 0;
+        return `<div class="player-card" onclick="openPlayerDetail('${p.id}')">
+          <div class="player-card-hex">${p.emoji||'♠'}</div>
+          <div class="player-card-name">${p.name}</div>
+          <div class="player-card-alias">${p.alias ? '"'+p.alias+'"' : p.sessions_played+' sessions'}</div>
+          <div class="player-card-profit ${isPos?'profit':'loss'}">${formatMoney(p.total_profit)}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:4px;">${p.sessions_played} sessions · ${p.sessions_played>0?Math.round(p.wins/p.sessions_played*100):0}% wins</div>
+        </div>`;
+      }).join('')}
+      <div class="player-card" onclick="openModal('modal-add-player')" style="border-style:dashed;border-color:var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--muted);min-height:180px;">
+        <div style="font-size:2rem;">+</div>
+        <div style="font-size:.8rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;">Add Player</div>
+      </div>
+    </div>`;
+  } catch(e) { console.error(e); }
+}
+init();
+</script>
+</body>
+</html>

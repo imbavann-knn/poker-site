@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard — Wholesome ALL IN</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+<nav class="nav"><div class="nav-inner">
+  <a href="/" class="nav-logo"><span class="nav-logo-icon">♠</span><span class="nav-logo-text">Wholesome ALL IN</span></a>
+  <ul class="nav-links">
+    <li><a href="/">Home</a></li><li><a href="/sessions">Sessions</a></li>
+    <li><a href="/leaderboard" class="active">Leaderboard</a></li><li><a href="/players">Players</a></li>
+    <li><a href="/changelog">Changelog</a></li>
+  </ul>
+</div></nav>
+
+<div class="page-wrap"><div class="container">
+  <div class="page-header">
+    <div class="page-header-tag">Rankings</div>
+    <h1 class="page-title">Leader<span class="gradient">board</span></h1>
+    <p class="page-subtitle">The glory, the shame, and everything in between.</p>
+  </div>
+
+  <!-- PERIOD TOGGLE -->
+  <div style="display:flex;gap:8px;margin-bottom:28px;">
+    <button class="btn btn-primary btn-sm period-btn" data-period="alltime" onclick="setPeriod('alltime',this)">All Time</button>
+    <button class="btn btn-ghost btn-sm period-btn" data-period="ytd" onclick="setPeriod('ytd',this)">YTD</button>
+    <button class="btn btn-ghost btn-sm period-btn" data-period="monthly" onclick="setPeriod('monthly',this)">This Month</button>
+  </div>
+
+  <!-- GROUP STATS -->
+  <div id="group-stats" class="stats-grid-4 mb-24"></div>
+
+  <!-- MAIN TABLE -->
+  <div class="card mb-24">
+    <div class="card-header">
+      <span class="card-title" id="lb-title">All Time Leaderboard</span>
+      <span class="card-badge card-badge-pink" id="lb-period-label">ALL TIME</span>
+    </div>
+    <div id="lb-table"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+  </div>
+
+  <!-- RECORDS -->
+  <div class="section-divider"><div class="sdl"></div><h2>Hall of Fame</h2><div class="sdr"></div></div>
+  <div id="records-grid" class="grid-3 mb-24"></div>
+
+</div></div>
+
+<footer class="footer"><div class="footer-inner">
+  <div class="footer-logo">♠ Wholesome ALL IN</div>
+  <div class="footer-text">OPEN LEDGER · ANYONE MAY EDIT</div>
+</div></footer>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+let currentPeriod = 'alltime';
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-btn').forEach(b => { b.classList.remove('active','btn-primary'); b.classList.add('btn-ghost'); });
+  btn.classList.add('active','btn-primary'); btn.classList.remove('btn-ghost');
+  const labels = { alltime:'ALL TIME', ytd:'YTD '+new Date().getFullYear(), monthly:'THIS MONTH' };
+  const titles = { alltime:'All Time Leaderboard', ytd:'Year-to-Date Leaderboard', monthly:'Monthly Leaderboard' };
+  document.getElementById('lb-period-label').textContent = labels[period];
+  document.getElementById('lb-title').textContent = titles[period];
+  loadLeaderboard();
+}
+
+async function loadLeaderboard() {
+  const el = document.getElementById('lb-table');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div> Loading...</div>';
+  try {
+    const period = currentPeriod === 'alltime' ? '' : currentPeriod;
+    const { leaderboard, groupStats } = await API.get(`/leaderboard${period ? '?period='+period : ''}`);
+
+    // Group stats
+    document.getElementById('group-stats').innerHTML = `
+      <div class="stat-box pink"><span class="stat-val">${groupStats.total_sessions||0}</span><span class="stat-lbl">Sessions</span></div>
+      <div class="stat-box cyan"><span class="stat-val">${groupStats.total_players||0}</span><span class="stat-lbl">Players</span></div>
+      <div class="stat-box yellow"><span class="stat-val">$${parseFloat(groupStats.total_pot_moved||0).toFixed(0)}</span><span class="stat-lbl">Total Pot</span></div>
+      <div class="stat-box purple"><span class="stat-val">${formatMoney(groupStats.biggest_win||0)}</span><span class="stat-lbl">Best Session</span></div>
+    `;
+
+    if (!leaderboard.length) {
+      el.innerHTML = '<div class="empty-state"><div class="icon">🃏</div><h3>No data yet</h3><p>Complete some sessions to see rankings.</p></div>';
+      return;
+    }
+
+    const maxAbs = Math.max(...leaderboard.map(p => Math.abs(p.total_profit)));
+    el.innerHTML = `<div style="overflow-x:auto;"><table class="lb-table">
+      <thead class="lb-head"><tr>
+        <th style="width:50px">#</th>
+        <th>Player</th>
+        <th style="text-align:center">Played</th>
+        <th style="text-align:center">Wins</th>
+        <th style="text-align:center">Win %</th>
+        <th style="text-align:center">Best Session</th>
+        <th style="min-width:140px;">Chart</th>
+        <th class="right">Net P/L</th>
+      </tr></thead>
+      <tbody>
+        ${leaderboard.map((p, i) => {
+          const pct = maxAbs ? Math.abs(p.total_profit) / maxAbs * 100 : 0;
+          const isPos = parseFloat(p.total_profit) >= 0;
+          const winRate = p.sessions_played > 0 ? Math.round(p.wins / p.sessions_played * 100) : 0;
+          return `<tr class="lb-row">
+            <td class="lb-rank ${i===0?'gold':i<3?'':''}">${String(i+1).padStart(2,'0')}</td>
+            <td><div class="lb-player">
+              <div class="player-hex">${p.emoji||'♠'}</div>
+              <div><div class="player-name"><a href="/player?id=${p.id}" style="color:inherit;text-decoration:none;">${p.name}</a></div>
+              <div class="player-alias">${p.alias||'—'}</div></div>
+            </div></td>
+            <td class="lb-games">${p.sessions_played}</td>
+            <td class="lb-games" style="color:var(--green)">${p.wins}</td>
+            <td class="lb-games">${winRate}%</td>
+            <td class="lb-games ${parseFloat(p.best_session)>=0?'profit':'loss'}">${formatMoney(p.best_session)}</td>
+            <td class="lb-bar-cell"><div class="neon-bar-wrap">
+              <div class="neon-bar ${isPos?'profit':'loss'}" style="width:${Math.max(4,pct)}px;max-width:120px"></div>
+            </div></td>
+            <td class="lb-profit ${isPos?'pos':'neg'}">${formatMoney(p.total_profit)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table></div>`;
+
+    // Hall of fame
+    const top = leaderboard[0];
+    const bottom = leaderboard[leaderboard.length - 1];
+    const mostGames = [...leaderboard].sort((a,b) => b.sessions_played - a.sessions_played)[0];
+    document.getElementById('records-grid').innerHTML = `
+      <div class="card"><div class="card-header"><span class="card-title">Top Earner</span><span class="card-badge card-badge-yellow">🏆</span></div>
+        <div class="card-body" style="text-align:center;padding:24px;">
+          <div class="player-hex" style="width:56px;height:56px;margin:0 auto 12px;font-size:1.5rem;">${top?.emoji||'♠'}</div>
+          <div style="font-weight:700;font-size:1.1rem;">${top?.name||'—'}</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--green);margin-top:8px;">${formatMoney(top?.total_profit||0)}</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">${top?.sessions_played||0} sessions</div>
+        </div></div>
+      <div class="card"><div class="card-header"><span class="card-title">Most Sessions</span><span class="card-badge card-badge-cyan">🃏</span></div>
+        <div class="card-body" style="text-align:center;padding:24px;">
+          <div class="player-hex" style="width:56px;height:56px;margin:0 auto 12px;font-size:1.5rem;">${mostGames?.emoji||'♠'}</div>
+          <div style="font-weight:700;font-size:1.1rem;">${mostGames?.name||'—'}</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--cyan);margin-top:8px;">${mostGames?.sessions_played||0} games</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Most dedicated</div>
+        </div></div>
+      <div class="card"><div class="card-header"><span class="card-title">The Donator</span><span class="card-badge card-badge-pink">💸</span></div>
+        <div class="card-body" style="text-align:center;padding:24px;">
+          <div class="player-hex" style="width:56px;height:56px;margin:0 auto 12px;font-size:1.5rem;">${bottom?.emoji||'♠'}</div>
+          <div style="font-weight:700;font-size:1.1rem;">${bottom?.name||'—'}</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--pink);margin-top:8px;">${formatMoney(bottom?.total_profit||0)}</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Thanks for the contribution 🙏</div>
+        </div></div>
+    `;
+  } catch(e) { el.innerHTML = '<div class="empty-state"><h3>Error loading data</h3></div>'; }
+}
+
+loadLeaderboard();
+</script>
+</body>
+</html>

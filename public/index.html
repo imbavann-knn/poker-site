@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wholesome ALL IN — Poker Night Tracker</title>
+<meta name="description" content="Track every bet, bluff, and bad beat. The Wholesome ALL IN poker group dashboard.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
+<link rel="stylesheet" href="/assets/css/style.css">
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="nav-logo-icon">♠</span>
+      <span class="nav-logo-text">Wholesome ALL IN</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="/" class="active">Home</a></li>
+      <li><a href="/sessions">Sessions</a></li>
+      <li><a href="/leaderboard">Leaderboard</a></li>
+      <li><a href="/players">Players</a></li>
+      <li><a href="/changelog">Changelog</a></li>
+    </ul>
+    <a href="#" class="nav-btn" onclick="openModal('modal-add-session'); return false;">+ Add Session</a>
+  </div>
+</nav>
+
+<div class="page-wrap">
+<div class="container">
+
+  <!-- HERO -->
+  <section class="page-header" style="text-align:center; padding-top:64px;">
+    <div class="page-header-tag">Est. 2021 · Singapore · All in, good vibes only ♠♥♦♣</div>
+    <h1 class="page-title" style="font-size:clamp(3.5rem,9vw,6.5rem);">
+      Wholesome<br><span class="gradient">ALL IN</span>
+    </h1>
+    <p class="page-subtitle" style="margin:12px auto 0; text-align:center;">Where the chips are fictional and the friendships are real. Mostly.</p>
+  </section>
+
+  <!-- NEXT GAME -->
+  <div id="next-game-section" style="margin:32px 0 48px;"></div>
+
+  <!-- GROUP STATS -->
+  <div id="group-stats" class="stats-grid-4 mb-24"></div>
+
+  <!-- LEADERBOARD PREVIEW -->
+  <div class="section-divider">
+    <div class="sdl"></div>
+    <h2>Top Players</h2>
+    <div class="section-tag">YTD</div>
+    <div class="sdr"></div>
+  </div>
+  <div class="card mb-24">
+    <div class="card-header">
+      <span class="card-title">YTD Leaderboard</span>
+      <a href="/leaderboard" class="card-badge card-badge-cyan" style="text-decoration:none;">Full Table →</a>
+    </div>
+    <div id="home-leaderboard"><div class="loading"><div class="spinner"></div> Loading...</div></div>
+  </div>
+
+  <!-- RECENT SESSIONS -->
+  <div class="section-divider">
+    <div class="sdl"></div>
+    <h2>Recent Sessions</h2>
+    <div class="sdr"></div>
+  </div>
+  <div id="recent-sessions" class="grid-3 mb-24"></div>
+
+</div>
+</div>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-logo">♠ Wholesome ALL IN</div>
+    <div class="footer-text">OPEN LEDGER · ANYONE MAY EDIT · NO LOGIN NEEDED</div>
+  </div>
+</footer>
+
+<!-- ADD SESSION MODAL -->
+<div class="modal-overlay" id="modal-add-session">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Plan New Session</span>
+      <button class="modal-close" onclick="closeModal('modal-add-session')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Date *</label>
+          <input type="date" class="form-input" id="s-date">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Time</label>
+          <input type="time" class="form-input" id="s-time" value="20:00">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Venue</label>
+          <input type="text" class="form-input" id="s-venue" placeholder="e.g. Marcus's Den">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Host</label>
+          <input type="text" class="form-input" id="s-host" placeholder="e.g. Marcus">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Blinds</label>
+        <select class="form-select" id="s-blinds" onchange="handleBlindsChange()"></select>
+        <input type="text" class="form-input mt-8" id="s-blinds-custom" placeholder="e.g. 0.50/1.00" style="display:none;">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="s-notes" placeholder="Anything to note for the night..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your Name (for changelog)</label>
+        <input type="text" class="form-input" id="s-creator" placeholder="e.g. Eevann">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-add-session')">Cancel</button>
+      <button class="btn btn-primary" onclick="createSession()">Create Session ♠</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<script src="/assets/js/api.js"></script>
+<script>
+// Populate blinds dropdown
+document.getElementById('s-blinds').innerHTML = blindsSelect();
+
+function handleBlindsChange() {
+  const sel = document.getElementById('s-blinds').value;
+  document.getElementById('s-blinds-custom').style.display = sel === 'custom' ? 'block' : 'none';
+}
+
+async function createSession() {
+  const date = document.getElementById('s-date').value;
+  if (!date) return showToast('Date is required', 'error');
+  const blindsSel = document.getElementById('s-blinds').value;
+  const blinds = blindsSel === 'custom' ? document.getElementById('s-blinds-custom').value : blindsSel;
+  try {
+    const session = await API.post('/sessions', {
+      date,
+      time: document.getElementById('s-time').value,
+      venue: document.getElementById('s-venue').value,
+      host: document.getElementById('s-host').value,
+      blinds,
+      notes: document.getElementById('s-notes').value,
+      created_by: document.getElementById('s-creator').value || 'Anonymous',
+    });
+    showToast('Session created! 🃏', 'success');
+    closeModal('modal-add-session');
+    setTimeout(() => window.location.href = `/session?id=${session.id}`, 800);
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function loadHome() {
+  // Load leaderboard + group stats
+  try {
+    const { leaderboard, groupStats } = await API.get('/leaderboard?period=ytd');
+
+    // Group stats
+    const statsEl = document.getElementById('group-stats');
+    statsEl.innerHTML = `
+      <div class="stat-box pink"><span class="stat-val">${groupStats.total_sessions || 0}</span><span class="stat-lbl">Sessions Played</span></div>
+      <div class="stat-box cyan"><span class="stat-val">${groupStats.total_players || 0}</span><span class="stat-lbl">Players</span></div>
+      <div class="stat-box yellow"><span class="stat-val">$${parseFloat(groupStats.total_pot_moved || 0).toFixed(0)}</span><span class="stat-lbl">Pot Moved</span></div>
+      <div class="stat-box purple"><span class="stat-val">${formatMoney(groupStats.biggest_win || 0)}</span><span class="stat-lbl">Biggest Win</span></div>
+    `;
+
+    // Leaderboard top 5
+    const lbEl = document.getElementById('home-leaderboard');
+    if (!leaderboard.length) {
+      lbEl.innerHTML = '<div class="empty-state"><div class="icon">🃏</div><h3>No results yet</h3><p>Add your first session to get started!</p></div>';
+      return;
+    }
+    const maxAbs = Math.max(...leaderboard.map(p => Math.abs(p.total_profit)));
+    lbEl.innerHTML = `<table class="lb-table">
+      <thead class="lb-head"><tr>
+        <th>#</th><th>Player</th><th class="right" style="text-align:center">Games</th>
+        <th>Chart</th><th class="right">Net P/L</th>
+      </tr></thead>
+      <tbody>${leaderboard.slice(0, 6).map((p, i) => {
+        const pct = maxAbs ? (Math.abs(p.total_profit) / maxAbs * 100) : 0;
+        const pos = parseFloat(p.total_profit) >= 0;
+        return `<tr class="lb-row">
+          <td class="lb-rank ${i === 0 ? 'gold' : ''}">${String(i+1).padStart(2,'0')}</td>
+          <td><div class="lb-player">
+            <div class="player-hex">${p.emoji || '♠'}</div>
+            <div><div class="player-name">${p.name}</div><div class="player-alias">${p.alias || '—'}</div></div>
+          </div></td>
+          <td class="lb-games">${p.sessions_played}</td>
+          <td class="lb-bar-cell"><div class="neon-bar-wrap"><div class="neon-bar ${pos?'profit':'loss'}" style="width:${pct}px; max-width:120px"></div></div></td>
+          <td class="lb-profit ${pos?'pos':'neg'}">${formatMoney(p.total_profit)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>`;
+  } catch(e) { console.error(e); }
+
+  // Load sessions
+  try {
+    const sessions = await API.get('/sessions');
+    const nextEl = document.getElementById('next-game-section');
+    const upcoming = sessions.filter(s => s.status === 'planned').sort((a,b) => new Date(a.date)-new Date(b.date));
+    const next = upcoming[0];
+
+    if (next) {
+      const countdown = getCountdown(next.date + 'T' + (next.time || '20:00') + ':00');
+      nextEl.innerHTML = `
+        <div style="background:var(--card);border:1px solid var(--cyan-border);box-shadow:0 0 30px rgba(0,245,255,0.08);padding:24px 32px;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-items:stretch;">
+          <div style="padding:0 32px 0 0;border-right:1px solid var(--cyan-border);">
+            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Next Showdown</div>
+            <div style="font-family:'Bebas Neue',cursive;font-size:1.8rem;letter-spacing:.06em;">${formatDate(next.date)}</div>
+            <div style="font-size:.82rem;color:var(--muted);margin-top:4px;">${next.venue || 'TBD'} · $${next.blinds}</div>
+          </div>
+          <div style="padding:0 32px;border-right:1px solid var(--cyan-border);">
+            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Host</div>
+            <div style="font-family:'Bebas Neue',cursive;font-size:1.8rem;">${next.host || 'TBD'}</div>
+            <div style="font-size:.82rem;color:var(--muted);margin-top:4px;">${next.attendee_count || 0} confirmed</div>
+          </div>
+          <div style="padding:0 32px;border-right:1px solid var(--cyan-border);">
+            <div style="font-size:.62rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--yellow);margin-bottom:6px;">Countdown</div>
+            <div style="font-family:'Orbitron',monospace;font-size:2rem;font-weight:900;color:var(--yellow);text-shadow:0 0 16px rgba(255,230,0,.5);" id="cd-display">${countdown}</div>
+            <div style="font-size:.6rem;color:var(--muted);letter-spacing:.2em;">D · H · M</div>
+          </div>
+          <div style="padding:0 0 0 32px;display:flex;align-items:center;gap:12px;">
+            <a href="/session?id=${next.id}" class="btn btn-outline btn-sm">View Details</a>
+            <a href="/session?id=${next.id}&enter_results=1" class="btn btn-green btn-sm">Enter Results ✓</a>
+          </div>
+        </div>`;
+    } else {
+      nextEl.innerHTML = `<div style="text-align:center;padding:32px 0;">
+        <div style="color:var(--muted);margin-bottom:16px;">No upcoming sessions planned.</div>
+        <a href="#" class="btn btn-primary" onclick="openModal('modal-add-session');return false;">+ Plan Next Game</a>
+      </div>`;
+    }
+
+    // Recent sessions grid
+    const recentEl = document.getElementById('recent-sessions');
+    const completed = sessions.filter(s => s.status === 'completed').slice(0, 3);
+    if (!completed.length) {
+      recentEl.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="icon">🂡</div><h3>No sessions yet</h3><p>Complete your first game to see results here.</p></div>';
+    } else {
+      recentEl.innerHTML = completed.map(s => `
+        <a href="/session?id=${s.id}" class="session-card">
+          <div class="session-card-date">${formatDate(s.date)}</div>
+          <div class="session-card-title">${s.venue || 'Game Night'}</div>
+          <div class="session-card-meta">$${s.blinds} blinds · ${s.results_count || 0} players</div>
+          <div class="session-card-footer">
+            <span class="pill pill-completed">Completed</span>
+            <span style="font-size:.78rem;color:var(--muted);">${s.host ? 'Host: '+s.host : ''}</span>
+          </div>
+        </a>`).join('');
+    }
+  } catch(e) { console.error(e); }
+}
+
+function getCountdown(dateTimeStr) {
+  const diff = new Date(dateTimeStr) - new Date();
+  if (diff <= 0) return '00·00·00';
+  const d = Math.floor(diff/86400000);
+  const h = Math.floor((diff%86400000)/3600000);
+  const m = Math.floor((diff%3600000)/60000);
+  return `${String(d).padStart(2,'0')}·${String(h).padStart(2,'0')}·${String(m).padStart(2,'0')}`;
+}
+
+loadHome();
+setInterval(() => {
+  const el = document.getElementById('cd-display');
+  if (el) { /* recompute from stored data if needed */ }
+}, 60000);
+</script>
+</body>
+</html>
