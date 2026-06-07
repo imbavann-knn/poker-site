@@ -102,7 +102,10 @@ const db = {
       lowdb.read();
       const idx = lowdb.data.players.findIndex(p => p.id === id);
       if (idx === -1) return null;
-      Object.assign(lowdb.data.players[idx], data);
+      // Only apply defined fields (allow null to explicitly clear photo)
+      Object.keys(data).forEach(k => {
+        if (data[k] !== undefined) lowdb.data.players[idx][k] = data[k];
+      });
       save();
       return lowdb.data.players[idx];
     },

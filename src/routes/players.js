@@ -28,11 +28,17 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   try {
-    const { name, alias, emoji, editor_name } = req.body;
+    const { name, alias, emoji, photo, editor_name } = req.body;
     const old = db.players.getById(req.params.id);
     if (!old) return res.status(404).json({ error: 'Player not found' });
-    const updated = db.players.update(req.params.id, { name, alias, emoji });
-    db.changelog.add('update','player',req.params.id, editor_name||'Anonymous', `Updated player: ${name||old.name}`, old, updated);
+    // photo: undefined = no change, '' = remove, 'data:...' = new photo
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (alias !== undefined) updates.alias = alias;
+    if (emoji !== undefined) updates.emoji = emoji;
+    if (photo !== undefined) updates.photo = photo || null; // '' becomes null (remove)
+    const updated = db.players.update(req.params.id, updates);
+    db.changelog.add('update','player',req.params.id, editor_name||'Anonymous', `Updated player: ${name||old.name}`, { name: old.name, alias: old.alias, emoji: old.emoji }, { name: updated.name, alias: updated.alias, emoji: updated.emoji });
     res.json(updated);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

@@ -214,9 +214,60 @@
   <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <span class="modal-title" id="pd-title">Player</span>
-      <button class="modal-close" onclick="closeModal('modal-player-detail')">✕</button>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-ghost btn-sm" id="pd-edit-btn" onclick="toggleEditMode()" style="font-size:.72rem;">✎ Edit</button>
+        <button class="modal-close" onclick="closeModal('modal-player-detail')">✕</button>
+      </div>
     </div>
+    <!-- VIEW MODE -->
     <div class="modal-body" id="pd-body"></div>
+    <!-- EDIT MODE (hidden until toggled) -->
+    <div id="pd-edit" style="display:none;">
+      <div class="modal-body">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:20px;">Anyone can update this player's photo and emoji. No login required.</p>
+
+        <!-- Edit photo -->
+        <div class="form-group" style="text-align:center;">
+          <label class="form-label" style="display:block;margin-bottom:10px;">Profile Photo</label>
+          <div class="photo-upload-area" onclick="document.getElementById('edit-photo-file').click()" id="edit-photo-drop" style="max-width:140px;">
+            <img id="edit-photo-preview" src="" alt="" style="display:none;">
+            <div class="upload-hint" id="edit-upload-hint">
+              <span>📷</span>
+              <div>Click to change</div>
+            </div>
+            <button class="photo-remove" id="edit-photo-remove" onclick="removeEditPhoto(event)">✕</button>
+          </div>
+          <input type="file" id="edit-photo-file" accept="image/*" onchange="handleEditPhoto(this)">
+        </div>
+
+        <!-- Edit emoji -->
+        <div class="form-group">
+          <label class="form-label">Emoji Fallback</label>
+          <div class="emoji-grid" id="edit-emoji-picker"></div>
+          <input type="text" class="form-input" id="edit-emoji" placeholder="Custom symbol..." style="font-size:1.1rem;margin-top:8px;">
+        </div>
+
+        <!-- Edit name & alias -->
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" class="form-input" id="edit-name">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nickname / Alias</label>
+          <input type="text" class="form-input" id="edit-alias" placeholder='"The Surgeon"'>
+        </div>
+
+        <!-- Editor name -->
+        <div class="form-group">
+          <label class="form-label">Your Name <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(for changelog)</span></label>
+          <input type="text" class="form-input" id="edit-editor" placeholder="e.g. Eevann">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="toggleEditMode()">Cancel</button>
+        <button class="btn btn-primary" onclick="savePlayerEdit()">Save Changes ✓</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -321,22 +372,129 @@ async function addPlayer() {
   } catch(err) { showToast(err.message, 'error'); }
 }
 
+// ——— Current player being viewed ———
+let currentPlayerId = null;
+let editPhotoData = null; // null = no change, '' = remove, 'data:...' = new photo
+
+// ——— Edit mode toggle ———
+function toggleEditMode() {
+  const viewEl = document.getElementById('pd-body');
+  const editEl = document.getElementById('pd-edit');
+  const btn = document.getElementById('pd-edit-btn');
+  const isEditing = editEl.style.display !== 'none';
+  if (isEditing) {
+    editEl.style.display = 'none';
+    viewEl.style.display = 'block';
+    btn.textContent = '✎ Edit';
+  } else {
+    editEl.style.display = 'block';
+    viewEl.style.display = 'none';
+    btn.textContent = '← Back';
+  }
+}
+
+// ——— Edit photo handlers ———
+function handleEditPhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) return showToast('Photo must be under 5MB', 'error');
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const MAX = 300;
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(MAX / img.width, MAX / img.height);
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      editPhotoData = canvas.toDataURL('image/jpeg', 0.75);
+      document.getElementById('edit-photo-preview').src = editPhotoData;
+      document.getElementById('edit-photo-preview').style.display = 'block';
+      document.getElementById('edit-upload-hint').style.display = 'none';
+      document.getElementById('edit-photo-remove').style.display = 'flex';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeEditPhoto(e) {
+  e.stopPropagation();
+  editPhotoData = ''; // empty string = explicitly remove photo
+  document.getElementById('edit-photo-preview').style.display = 'none';
+  document.getElementById('edit-upload-hint').style.display = 'flex';
+  document.getElementById('edit-photo-remove').style.display = 'none';
+  document.getElementById('edit-photo-file').value = '';
+}
+
+// ——— Build edit emoji picker ———
+function buildEditEmojiPicker(currentEmoji) {
+  const container = document.getElementById('edit-emoji-picker');
+  container.innerHTML = '';
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn' + (e === currentEmoji ? ' selected' : '');
+    btn.textContent = e;
+    btn.addEventListener('click', () => {
+      document.getElementById('edit-emoji').value = e;
+      container.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ——— Save edits ———
+async function savePlayerEdit() {
+  const name = document.getElementById('edit-name').value.trim();
+  const alias = document.getElementById('edit-alias').value.trim();
+  const emoji = document.getElementById('edit-emoji').value || '♠';
+  const editor = document.getElementById('edit-editor').value.trim() || 'Anonymous';
+
+  const payload = { name, alias, emoji, editor_name: editor };
+  // Only send photo if changed
+  if (editPhotoData !== null) payload.photo = editPhotoData;
+
+  try {
+    await API.put('/players/' + currentPlayerId, payload);
+    showToast('Profile updated! ✓', 'success');
+    // Reload detail view
+    closeModal('modal-player-detail');
+    // Re-open with fresh data after short delay
+    setTimeout(() => {
+      openPlayerDetail(currentPlayerId);
+      init(); // refresh grid
+    }, 300);
+  } catch(err) { showToast(err.message, 'error'); }
+}
+
 // ——— Player Detail Modal ———
 async function openPlayerDetail(id) {
+  currentPlayerId = id;
+  editPhotoData = null;
+
+  // Reset to view mode
+  document.getElementById('pd-body').style.display = 'block';
+  document.getElementById('pd-edit').style.display = 'none';
+  document.getElementById('pd-edit-btn').textContent = '✎ Edit';
+
   try {
     const p = await API.get('/players/' + id);
     const s = p.stats;
     const winRate = s.sessions_played > 0 ? Math.round(s.wins / s.sessions_played * 100) : 0;
     document.getElementById('pd-title').textContent = p.name;
 
+    // Avatar: circular photo OR hex emoji — NOT inside hex when photo exists
     const avatarHtml = p.photo
-      ? '<img src="' + p.photo + '" alt="' + p.name + '" class="detail-photo">'
+      ? '<img src="' + p.photo + '" alt="' + p.name + '" class="detail-photo" style="display:block;">'
       : '<div class="detail-hex">' + (p.emoji || '♠') + '</div>';
 
     document.getElementById('pd-body').innerHTML =
       '<div style="text-align:center;margin-bottom:24px;">' +
         avatarHtml +
-        '<div style="font-family:\'Bebas Neue\',cursive;font-size:2rem;letter-spacing:.06em;">' + p.name + '</div>' +
+        '<div style="font-family:\'Bebas Neue\',cursive;font-size:2rem;letter-spacing:.06em;margin-top:4px;">' + p.name + '</div>' +
         (p.alias ? '<div style="color:var(--muted);font-size:.9rem;margin-top:4px;">"' + p.alias + '"</div>' : '') +
         '<div style="font-size:.7rem;color:var(--muted);margin-top:6px;letter-spacing:.15em;">Member since ' + (p.joined_date ? formatDate(p.joined_date) : '—') + '</div>' +
       '</div>' +
@@ -350,18 +508,38 @@ async function openPlayerDetail(id) {
         '<span style="color:var(--muted);">Worst: <span class="loss">' + formatMoney(s.worst_session) + '</span></span>' +
         '<span style="color:var(--muted);">' + s.wins + 'W · ' + s.losses + 'L</span>' +
       '</div>' +
-      (p.history && p.history.length ?
-        '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
-        '<div style="max-height:220px;overflow-y:auto;">' +
-          p.history.map(h =>
-            '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
-              '<span style="color:var(--muted);">' + formatDate(h.date) + (h.venue ? ' · ' + h.venue : '') + '</span>' +
-              '<span class="' + profitClass(h.profit_loss) + '">' + formatMoney(h.profit_loss) + '</span>' +
-            '</div>'
-          ).join('') +
-        '</div>'
+      (p.history && p.history.length
+        ? '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
+          '<div style="max-height:220px;overflow-y:auto;">' +
+            p.history.map(h =>
+              '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
+                '<span style="color:var(--muted);">' + formatDate(h.date) + (h.venue ? ' · ' + h.venue : '') + '</span>' +
+                '<span class="' + profitClass(h.profit_loss) + '">' + formatMoney(h.profit_loss) + '</span>' +
+              '</div>'
+            ).join('') +
+          '</div>'
         : '<div style="color:var(--muted);text-align:center;padding:24px;font-size:.85rem;">No sessions recorded yet.</div>'
       );
+
+    // Pre-fill edit form
+    document.getElementById('edit-name').value = p.name || '';
+    document.getElementById('edit-alias').value = p.alias || '';
+    document.getElementById('edit-emoji').value = p.emoji || '♠';
+    // Edit photo preview
+    const editPreview = document.getElementById('edit-photo-preview');
+    const editHint = document.getElementById('edit-upload-hint');
+    const editRemove = document.getElementById('edit-photo-remove');
+    if (p.photo) {
+      editPreview.src = p.photo;
+      editPreview.style.display = 'block';
+      editHint.style.display = 'none';
+      editRemove.style.display = 'flex';
+    } else {
+      editPreview.style.display = 'none';
+      editHint.style.display = 'flex';
+      editRemove.style.display = 'none';
+    }
+    buildEditEmojiPicker(p.emoji || '♠');
 
     openModal('modal-player-detail');
   } catch(e) { showToast('Error loading player', 'error'); }
