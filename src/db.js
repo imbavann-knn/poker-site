@@ -17,7 +17,10 @@ function parseDbUrl(url) {
   }
 }
 
-const parsed = parseDbUrl(process.env.DATABASE_URL || '');
+const rawUrl = process.env.DATABASE_URL || '';
+console.log('🔌 DB URL host:', rawUrl.split('@')[1]?.split('/')[0] || 'unknown');
+
+const parsed = parseDbUrl(rawUrl);
 const sslConfig = { rejectUnauthorized: false, checkServerIdentity: () => undefined };
 const poolConfig = parsed
   ? { ...parsed, ssl: sslConfig, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 }
