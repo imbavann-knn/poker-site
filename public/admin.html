@@ -68,14 +68,34 @@
 <script>
 let adminPw = '';
 
-function checkAuth() {
-  adminPw = document.getElementById('admin-pw').value;
-  if (!adminPw) return;
-  // Test with a lightweight call
-  document.getElementById('auth-error').textContent = '';
-  document.getElementById('auth-gate').style.display = 'none';
-  document.getElementById('admin-panel').style.display = 'block';
-  loadAdminData();
+async function checkAuth() {
+  const pw = document.getElementById('admin-pw').value.trim();
+  if (!pw) return;
+  const btn = document.querySelector('#auth-gate .btn-primary');
+  btn.textContent = 'Checking...'; btn.disabled = true;
+  try {
+    // Verify password by attempting a real admin action with a dummy no-op
+    // Use delete-changelog with a bogus id — if password wrong it 403s, if right it 404s (no such entry) which is fine
+    const res = await fetch('/api/admin/delete-changelog', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ password: pw, entry_id: '__verify__' })
+    });
+    if (res.status === 403) {
+      document.getElementById('auth-error').textContent = '✕ Wrong password';
+      btn.textContent = 'Unlock ♠'; btn.disabled = false;
+      document.getElementById('admin-pw').select();
+      return;
+    }
+    // 200 or any non-403 = password correct
+    adminPw = pw;
+    document.getElementById('auth-error').textContent = '';
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('admin-panel').style.display = 'block';
+    loadAdminData();
+  } catch(e) {
+    document.getElementById('auth-error').textContent = 'Network error — try again';
+    btn.textContent = 'Unlock ♠'; btn.disabled = false;
+  }
 }
 
 async function loadAdminData() {
