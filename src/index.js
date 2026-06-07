@@ -33,7 +33,15 @@ async function initDB() {
   }
 }
 
-// Fallback to index.html for SPA-like routing
+// Clean URL routing — serve correct HTML for each page
+const pages = ['sessions', 'leaderboard', 'players', 'changelog', 'session', 'admin'];
+pages.forEach(page => {
+  app.get(`/${page}`, (req, res) => {
+    res.sendFile(path.join(__dirname, `../public/${page}.html`));
+  });
+});
+
+// Fallback to index.html
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
