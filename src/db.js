@@ -19,6 +19,7 @@ const defaultData = {
   sessions: [],
   session_attendance: [],
   session_results: [],
+  session_highlights: [],
   changelog: [],
 };
 
@@ -212,6 +213,31 @@ const db = {
     delete: (id) => {
       lowdb.read();
       lowdb.data.session_results = lowdb.data.session_results.filter(r => r.id !== id);
+      save();
+    },
+  },
+
+  // ——— Highlights ———
+  highlights: {
+    getBySession: (session_id) => {
+      lowdb.read();
+      if (!lowdb.data.session_highlights) lowdb.data.session_highlights = [];
+      return lowdb.data.session_highlights
+        .filter(h => h.session_id === session_id)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    },
+    create: (data) => {
+      lowdb.read();
+      if (!lowdb.data.session_highlights) lowdb.data.session_highlights = [];
+      const highlight = { id: genId(), created_at: new Date().toISOString(), ...data };
+      lowdb.data.session_highlights.push(highlight);
+      save();
+      return highlight;
+    },
+    delete: (id) => {
+      lowdb.read();
+      if (!lowdb.data.session_highlights) lowdb.data.session_highlights = [];
+      lowdb.data.session_highlights = lowdb.data.session_highlights.filter(h => h.id !== id);
       save();
     },
   },

@@ -90,6 +90,59 @@
   </div>
 </div>
 
+<!-- ADD HIGHLIGHT MODAL -->
+<div class="modal-overlay" id="modal-highlight" style="z-index:600;">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header">
+      <span class="modal-title">✨ Add Highlight</span>
+      <button class="modal-close" onclick="closeModal('modal-highlight')">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Author -->
+      <div class="form-group">
+        <label class="form-label">Posted by</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <button type="button" id="hl-anon-btn" class="btn btn-outline btn-sm" onclick="setAuthorMode('anon')" style="border-color:var(--cyan);color:var(--cyan);">👤 Anonymous</button>
+          <button type="button" id="hl-player-btn" class="btn btn-ghost btn-sm" onclick="setAuthorMode('player')">🎴 Tag a Player</button>
+        </div>
+        <div id="hl-player-select" style="display:none;margin-top:10px;">
+          <select class="form-select" id="hl-player-id">
+            <option value="">Select player...</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Text -->
+      <div class="form-group">
+        <label class="form-label">What happened? <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+        <textarea class="form-textarea" id="hl-text" placeholder="e.g. Ryan went all-in on a bluff and lost everything 💀" style="min-height:80px;"></textarea>
+      </div>
+
+      <!-- Images -->
+      <div class="form-group">
+        <label class="form-label">Photos <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(up to 4)</span></label>
+        <div id="hl-image-area" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:8px;"></div>
+        <label id="hl-add-photo-btn" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--surface);border:1px dashed rgba(255,45,135,.35);color:var(--muted);padding:8px 16px;font-size:.78rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;transition:all .15s;" onmouseover="this.style.borderColor='var(--pink)';this.style.color='var(--pink)'" onmouseout="this.style.borderColor='rgba(255,45,135,.35)';this.style.color='var(--muted)'">
+          📷 Add Photo
+          <input type="file" accept="image/*" multiple id="hl-photo-input" style="display:none;" onchange="handleHighlightPhotos(this)">
+        </label>
+      </div>
+
+      <!-- Video URL -->
+      <div class="form-group">
+        <label class="form-label">Video Link <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(YouTube · TikTok · Instagram)</span></label>
+        <input type="url" class="form-input" id="hl-video-url" placeholder="https://youtube.com/watch?v=...">
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-highlight')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitHighlight()">Post Highlight ✨</button>
+    </div>
+  </div>
+</div>
+
 <style>
 /* Player checkbox row */
 .player-check-row {
@@ -166,7 +219,9 @@ function renderSession() {
 
     ${isPlanned ? renderAttendance() : ''}
     ${isCompleted ? renderResults() : ''}
+    <div id="highlights-section"></div>
   `;
+  loadHighlights();
 }
 
 function renderAttendance() {
@@ -438,6 +493,238 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 init().then(() => populateAttPlayerSelect());
+
+// =============================================
+// SESSION HIGHLIGHTS
+// =============================================
+let hlImages = []; // base64 array for current highlight being composed
+let hlAuthorMode = 'anon';
+
+function setAuthorMode(mode) {
+  hlAuthorMode = mode;
+  const anonBtn = document.getElementById('hl-anon-btn');
+  const playerBtn = document.getElementById('hl-player-btn');
+  const playerSel = document.getElementById('hl-player-select');
+  if (mode === 'anon') {
+    anonBtn.style.borderColor = 'var(--cyan)'; anonBtn.style.color = 'var(--cyan)';
+    playerBtn.style.borderColor = ''; playerBtn.style.color = '';
+    playerBtn.className = 'btn btn-ghost btn-sm';
+    if (playerSel) playerSel.style.display = 'none';
+  } else {
+    playerBtn.style.borderColor = 'var(--cyan)'; playerBtn.style.color = 'var(--cyan)';
+    playerBtn.className = 'btn btn-outline btn-sm';
+    anonBtn.style.borderColor = ''; anonBtn.style.color = '';
+    anonBtn.className = 'btn btn-ghost btn-sm';
+    if (playerSel) playerSel.style.display = 'block';
+  }
+}
+
+function openHighlightModal() {
+  // Reset form
+  hlImages = [];
+  hlAuthorMode = 'anon';
+  document.getElementById('hl-text').value = '';
+  document.getElementById('hl-video-url').value = '';
+  document.getElementById('hl-image-area').innerHTML = '';
+  document.getElementById('hl-photo-input').value = '';
+  document.getElementById('hl-add-photo-btn').style.display = 'inline-flex';
+  setAuthorMode('anon');
+
+  // Populate player dropdown
+  const sel = document.getElementById('hl-player-id');
+  sel.innerHTML = '<option value="">Select player...</option>' +
+    allPlayers.map(p => `<option value="${p.id}">${p.emoji||'♠'} ${p.name}${p.alias?' ('+p.alias+')':''}</option>`).join('');
+
+  openModal('modal-highlight');
+}
+
+function handleHighlightPhotos(input) {
+  const files = Array.from(input.files);
+  const remaining = 4 - hlImages.length;
+  if (!remaining) return showToast('Maximum 4 photos per highlight', 'error');
+  const toProcess = files.slice(0, remaining);
+  let processed = 0;
+  toProcess.forEach(file => {
+    if (file.size > 15 * 1024 * 1024) { showToast('Each photo must be under 15MB', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => {
+        // Crop to square, 900px
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2, sy = (img.height - side) / 2;
+        const MAX = 900;
+        const canvas = document.createElement('canvas');
+        canvas.width = MAX; canvas.height = MAX;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, MAX, MAX);
+        const data = canvas.toDataURL('image/jpeg', 0.88);
+        hlImages.push(data);
+        renderHlImagePreviews();
+        processed++;
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function renderHlImagePreviews() {
+  const area = document.getElementById('hl-image-area');
+  area.innerHTML = hlImages.map((src, i) => `
+    <div style="position:relative;aspect-ratio:1/1;overflow:hidden;border:1px solid rgba(255,45,135,.3);border-radius:4px;">
+      <img src="${src}" style="width:100%;height:100%;object-fit:cover;">
+      <button type="button" onclick="removeHlImage(${i})" style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);border:none;color:#fff;width:22px;height:22px;border-radius:50%;cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>`).join('');
+  // Hide add button when at max
+  const addBtn = document.getElementById('hl-add-photo-btn');
+  if (addBtn) addBtn.style.display = hlImages.length >= 4 ? 'none' : 'inline-flex';
+}
+
+function removeHlImage(idx) {
+  hlImages.splice(idx, 1);
+  renderHlImagePreviews();
+}
+
+async function submitHighlight() {
+  const text = document.getElementById('hl-text').value.trim();
+  const video_url = document.getElementById('hl-video-url').value.trim();
+  if (!text && !hlImages.length && !video_url) {
+    return showToast('Add some text, a photo, or a video link', 'error');
+  }
+  let author_name = 'Anonymous';
+  let author_player_id = null;
+  if (hlAuthorMode === 'player') {
+    const selId = document.getElementById('hl-player-id').value;
+    if (!selId) return showToast('Select which player is posting', 'error');
+    author_player_id = selId;
+    const p = allPlayers.find(pl => pl.id === selId);
+    author_name = p?.name || 'Anonymous';
+  }
+  const btn = document.querySelector('#modal-highlight .btn-primary');
+  btn.textContent = 'Posting...'; btn.disabled = true;
+  try {
+    await API.post(`/sessions/${sessionId}/highlights`, {
+      text: text || null,
+      images: hlImages,
+      video_url: video_url || null,
+      author_name,
+      author_player_id,
+    });
+    showToast('Highlight posted! ✨', 'success');
+    closeModal('modal-highlight');
+    loadHighlights();
+  } catch(err) {
+    showToast(err.message, 'error');
+  } finally {
+    btn.textContent = 'Post Highlight ✨'; btn.disabled = false;
+  }
+}
+
+function getVideoEmbed(url) {
+  if (!url) return null;
+  // YouTube
+  const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]+)/);
+  if (ytMatch) return `<iframe src="https://www.youtube.com/embed/${ytMatch[1]}" style="width:100%;aspect-ratio:16/9;border:none;border-radius:4px;" allowfullscreen></iframe>`;
+  // TikTok — just show link (embedding complex)
+  if (url.includes('tiktok.com')) return `<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;color:var(--cyan);font-size:.85rem;text-decoration:none;padding:10px 0;">🎵 Watch on TikTok →</a>`;
+  // Instagram
+  if (url.includes('instagram.com')) return `<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;color:var(--pink);font-size:.85rem;text-decoration:none;padding:10px 0;">📸 View on Instagram →</a>`;
+  // Generic
+  return `<a href="${url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:8px;color:var(--cyan);font-size:.85rem;text-decoration:none;padding:10px 0;">🎬 Watch Video →</a>`;
+}
+
+async function loadHighlights() {
+  const section = document.getElementById('highlights-section');
+  if (!section) return;
+  try {
+    const highlights = await API.get(`/sessions/${sessionId}/highlights`);
+    section.innerHTML = `
+      <div class="section-divider"><div class="sdl"></div><h2>Highlights</h2><div class="section-tag">${highlights.length} post${highlights.length !== 1 ? 's' : ''}</div><div class="sdr"></div></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px;">
+        <button class="btn btn-primary" onclick="openHighlightModal()">✨ Add Highlight</button>
+      </div>
+      <div id="hl-feed" style="display:flex;flex-direction:column;gap:20px;margin-bottom:60px;">
+        ${highlights.length ? highlights.map(h => renderHighlightCard(h)).join('') : `
+          <div class="empty-state" style="padding:40px;border:1px dashed rgba(255,45,135,.2);border-radius:4px;">
+            <div class="icon">✨</div>
+            <h3>No highlights yet</h3>
+            <p>Be the first to post a highlight from this session!</p>
+          </div>`}
+      </div>`;
+  } catch(e) { console.error('Highlights error:', e); }
+}
+
+function renderHighlightCard(h) {
+  // Author
+  const hasPhoto = h.player_photo;
+  const avatarHtml = h.author_player_id
+    ? (hasPhoto
+        ? `<img src="${h.player_photo}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;border:2px solid var(--pink-border);">`
+        : `<div style="width:40px;height:40px;border-radius:50%;background:var(--pink-dim);border:2px solid var(--pink-border);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">${h.player_emoji||'♠'}</div>`)
+    : `<div style="width:40px;height:40px;border-radius:50%;background:var(--surface);border:2px solid var(--border-subtle);display:flex;align-items:center;justify-content:center;font-size:1rem;">👤</div>`;
+
+  // Images grid
+  const imgCount = h.images?.length || 0;
+  const imgGrid = imgCount ? `
+    <div style="display:grid;grid-template-columns:${imgCount === 1 ? '1fr' : imgCount === 2 ? '1fr 1fr' : imgCount === 3 ? '2fr 1fr' : '1fr 1fr'};gap:3px;border-radius:6px;overflow:hidden;margin-top:12px;">
+      ${imgCount === 3
+        ? `<img src="${h.images[0]}" style="width:100%;aspect-ratio:1/1;object-fit:cover;">
+           <div style="display:grid;grid-template-rows:1fr 1fr;gap:3px;">
+             <img src="${h.images[1]}" style="width:100%;height:100%;object-fit:cover;">
+             <img src="${h.images[2]}" style="width:100%;height:100%;object-fit:cover;">
+           </div>`
+        : h.images.map((src, i) => {
+            const extra = i === 3 && imgCount > 4 ? `<div style="position:absolute;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-size:1.4rem;font-weight:700;color:#fff;">+${imgCount-4}</div>` : '';
+            return `<div style="position:relative;aspect-ratio:1/1;overflow:hidden;"><img src="${src}" style="width:100%;height:100%;object-fit:cover;" onclick="openImgViewer('${h.id}',${i})" style="cursor:pointer;">${extra}</div>`;
+          }).slice(0,4).join('')
+      }
+    </div>` : '';
+
+  const videoHtml = h.video_url ? `<div style="margin-top:12px;">${getVideoEmbed(h.video_url)}</div>` : '';
+
+  return `
+    <div style="background:var(--card);border:1px solid rgba(255,45,135,.15);padding:20px;border-radius:4px;transition:border-color .3s;" onmouseover="this.style.borderColor='rgba(255,45,135,.35)'" onmouseout="this.style.borderColor='rgba(255,45,135,.15)'">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        ${avatarHtml}
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:.95rem;">${h.author_name || 'Anonymous'}</div>
+          <div style="font-size:.7rem;color:var(--muted);margin-top:2px;">${timeAgo(h.created_at)}</div>
+        </div>
+        <button onclick="deleteHighlight('${h.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px;transition:color .15s;" onmouseover="this.style.color='var(--pink)'" onmouseout="this.style.color='var(--muted)'" title="Delete highlight">✕</button>
+      </div>
+      ${h.text ? `<div style="font-size:.95rem;line-height:1.6;white-space:pre-wrap;">${h.text}</div>` : ''}
+      ${imgGrid}
+      ${videoHtml}
+    </div>`;
+}
+
+async function deleteHighlight(id) {
+  if (!confirm('Delete this highlight?')) return;
+  try {
+    await fetch(`/api/sessions/${sessionId}/highlights/${id}`, { method: 'DELETE' });
+    showToast('Highlight deleted', 'success');
+    loadHighlights();
+  } catch(e) { showToast('Error deleting', 'error'); }
+}
+
+// Full-screen image viewer
+function openImgViewer(highlightId, imgIndex) {
+  // Simple lightbox
+  const existing = document.getElementById('img-lightbox');
+  if (existing) existing.remove();
+  const lb = document.createElement('div');
+  lb.id = 'img-lightbox';
+  lb.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  lb.onclick = () => lb.remove();
+  // Find the highlight in the feed
+  const allCards = document.querySelectorAll('#hl-feed [style*="background:var(--card)"]');
+  // Simpler: just use event target's src
+  lb.innerHTML = `<img src="${event?.target?.src || ''}" style="max-width:95vw;max-height:95vh;object-fit:contain;border-radius:4px;">`;
+  document.body.appendChild(lb);
+}
 </script>
 </body>
 </html>

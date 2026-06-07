@@ -69,4 +69,49 @@ router.delete('/:id/attendance/:player_id', (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// GET highlights for a session
+router.get('/:id/highlights', (req, res) => {
+  try {
+    const highlights = db.highlights.getBySession(req.params.id);
+    // Enrich with player info
+    const enriched = highlights.map(h => {
+      if (h.author_player_id) {
+        const p = db.players.getById(h.author_player_id);
+        return { ...h, player_name: p?.name, player_emoji: p?.emoji, player_photo: p?.photo };
+      }
+      return h;
+    });
+    res.json(enriched);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST create highlight
+router.post('/:id/highlights', (req, res) => {
+  try {
+    const { text, images, video_url, author_name, author_player_id } = req.body;
+    if (!text && (!images || !images.length) && !video_url) {
+      return res.status(400).json({ error: 'Add some text, an image, or a video link' });
+    }
+    const highlight = db.highlights.create({
+      session_id: req.params.id,
+      text: text || null,
+      images: images || [],   // array of base64 strings
+      video_url: video_url || null,
+      author_name: author_name || 'Anonymous',
+      author_player_id: author_player_id || null,
+    });
+    db.changelog.add('create', 'highlight', req.params.id, author_name || 'Anonymous',
+      `Added highlight to session`);
+    res.status(201).json(highlight);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE highlight
+router.delete('/:id/highlights/:hid', (req, res) => {
+  try {
+    db.highlights.delete(req.params.hid);
+    res.json({ message: 'Highlight deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
