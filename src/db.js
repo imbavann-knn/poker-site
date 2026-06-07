@@ -1,15 +1,31 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const dbUrl = process.env.DATABASE_URL || '';
+// Parse DATABASE_URL manually to use explicit params (avoids SSL negotiation bugs)
+function parseDbUrl(url) {
+  try {
+    const u = new URL(url);
+    return {
+      host: u.hostname,
+      port: parseInt(u.port) || 5432,
+      database: u.pathname.replace('/', ''),
+      user: u.username,
+      password: u.password,
+    };
+  } catch (e) {
+    return null;
+  }
+}
 
-const pool = new Pool({
-  connectionString: dbUrl,
-  // SSL handled via ?sslmode= in connection string
-});
+const parsed = parseDbUrl(process.env.DATABASE_URL || '');
+const poolConfig = parsed
+  ? { ...parsed, ssl: false, max: 10, idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000 }
+  : { connectionString: process.env.DATABASE_URL, ssl: false };
+
+const pool = new Pool(poolConfig);
 
 pool.on('error', (err) => {
-  console.error('Unexpected DB error', err);
+  console.error('Unexpected DB pool error', err.message);
 });
 
 module.exports = pool;
