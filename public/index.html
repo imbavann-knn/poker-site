@@ -92,7 +92,7 @@
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Date *</label>
-          <input type="date" class="form-input" id="s-date">
+          <input type="hidden" id="s-date">
         </div>
         <div class="form-group">
           <label class="form-label">Time</label>
@@ -135,6 +135,7 @@
 <script>
 // Populate blinds dropdown
 document.getElementById('s-blinds').innerHTML = blindsSelect();
+initDatePicker('s-date', { placeholder: 'Pick a date...' });
 
 function handleBlindsChange() {
   const sel = document.getElementById('s-blinds').value;

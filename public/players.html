@@ -190,7 +190,7 @@
       <!-- Joined Date -->
       <div class="form-group">
         <label class="form-label">Joined Date</label>
-        <input type="date" class="form-input" id="p-joined">
+        <input type="hidden" id="p-joined">
       </div>
 
       <!-- Your name -->
@@ -295,6 +295,7 @@ function buildEmojiPicker() {
   });
 }
 buildEmojiPicker();
+initDatePicker('p-joined', { placeholder: 'When did they join? (optional)' });
 
 // ——— Photo Handling ———
 let currentPhotoData = null;

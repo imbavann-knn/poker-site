@@ -66,7 +66,7 @@
     <div class="modal-header"><span class="modal-title">Edit Session</span><button class="modal-close" onclick="closeModal('modal-edit-session')">✕</button></div>
     <div class="modal-body">
       <div class="form-row">
-        <div class="form-group"><label class="form-label">Date</label><input type="date" class="form-input" id="es-date"></div>
+        <div class="form-group"><label class="form-label">Date</label><input type="hidden" id="es-date"></div>
         <div class="form-group"><label class="form-label">Time</label><input type="time" class="form-input" id="es-time"></div>
       </div>
       <div class="form-row">
@@ -268,8 +268,27 @@ async function removeAttendance(playerId, name) {
   } catch(err) { showToast(err.message, 'error'); }
 }
 
+let editDatePickerInit = false;
 function openEditModal() {
+  // Set hidden value first so picker can pre-select
   document.getElementById('es-date').value = session.date;
+  if (!editDatePickerInit) {
+    initDatePicker('es-date', { placeholder: 'Pick a date...' });
+    editDatePickerInit = true;
+  } else {
+    // Picker already exists — update its display
+    const wrap = document.querySelector('#es-date')?.closest('.dp-wrap');
+    if (wrap) {
+      const displayInput = wrap.querySelector('.dp-input');
+      if (displayInput && session.date) {
+        const parts = session.date.split('-');
+        if (parts.length === 3) {
+          const d = new Date(+parts[0], +parts[1]-1, +parts[2]);
+          displayInput.value = d.toLocaleDateString('en-GB', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+        }
+      }
+    }
+  }
   document.getElementById('es-time').value = session.time || '20:00';
   document.getElementById('es-venue').value = session.venue || '';
   document.getElementById('es-host').value = session.host || '';
