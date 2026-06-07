@@ -28,16 +28,25 @@
   <div class="footer-text">OPEN LEDGER · ANYONE MAY EDIT</div>
 </div></footer>
 
-<!-- ADD ATTENDANCE MODAL -->
+<!-- MANAGE ATTENDANCE MODAL (checkbox list) -->
 <div class="modal-overlay" id="modal-add-attendance">
-  <div class="modal">
-    <div class="modal-header"><span class="modal-title">Add Player to Session</span><button class="modal-close" onclick="closeModal('modal-add-attendance')">✕</button></div>
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <span class="modal-title">Who's Playing?</span>
+      <button class="modal-close" onclick="closeModal('modal-add-attendance')">✕</button>
+    </div>
     <div class="modal-body">
-      <div class="form-group"><label class="form-label">Select Player</label><select class="form-select" id="att-player"></select></div>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:16px;">Check to add · Uncheck to remove. Changes apply when you save.</p>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllPlayers(true)">Select All</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllPlayers(false)">Clear All</button>
+        <span id="att-count" style="margin-left:auto;font-size:.78rem;color:var(--cyan);align-self:center;font-family:'Orbitron',monospace;"></span>
+      </div>
+      <div id="att-checkbox-list" style="display:flex;flex-direction:column;gap:6px;max-height:380px;overflow-y:auto;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-attendance')">Cancel</button>
-      <button class="btn btn-primary" onclick="addAttendance()">Add Player</button>
+      <button class="btn btn-primary" onclick="saveAttendance()">Save ✓</button>
     </div>
   </div>
 </div>
@@ -81,6 +90,33 @@
   </div>
 </div>
 
+<style>
+/* Player checkbox row */
+.player-check-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.06); border-radius: 4px;
+  transition: background .15s, border-color .15s;
+  user-select: none;
+}
+.player-check-row:hover { background: rgba(255,45,135,.07); border-color: rgba(255,45,135,.25); }
+.player-check-row.checked { background: rgba(0,245,255,.06); border-color: rgba(0,245,255,.3); }
+.player-check-box {
+  width: 20px; height: 20px; flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,.2); border-radius: 3px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .85rem; transition: all .15s;
+}
+.player-check-row.checked .player-check-box {
+  background: var(--cyan); border-color: var(--cyan);
+  box-shadow: 0 0 8px rgba(0,245,255,.4);
+}
+.player-check-avatar { font-size: 1.2rem; }
+.player-check-avatar img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; border: 1px solid rgba(0,245,255,.3); }
+.player-check-info { flex: 1; }
+.player-check-name { font-weight: 700; font-size: .9rem; }
+.player-check-alias { font-size: .72rem; color: var(--muted); margin-top: 1px; }
+</style>
 <div id="toast"></div>
 <script src="/assets/js/api.js"></script>
 <script>
@@ -144,7 +180,7 @@ function renderAttendance() {
   return `
     <div class="section-divider"><div class="sdl"></div><h2>Attendance</h2><div class="section-tag">${session.attendance?.length || 0} confirmed</div><div class="sdr"></div></div>
     <div class="card mb-24">
-      <div class="card-header"><span class="card-title">Who's In</span><button class="btn btn-sm btn-outline" onclick="openModal('modal-add-attendance')">+ Add Player</button></div>
+      <div class="card-header"><span class="card-title">Who's In</span><button class="btn btn-sm btn-outline" onclick="openAttendanceModal()">✎ Edit Players</button></div>
       <div class="card-body">
         ${chips ? `<div class="attendee-list">${chips}</div>` : '<div class="empty-state" style="padding:30px"><p>No one added yet. Add players above!</p></div>'}
       </div>
@@ -240,15 +276,89 @@ async function submitResults() {
   } catch(err) { showToast(err.message, 'error'); }
 }
 
-async function addAttendance() {
-  const player_id = document.getElementById('att-player').value;
-  const added_by = 'Anonymous';
-  if (!player_id) return showToast('Select a player', 'error');
+// ——— Attendance checkbox modal ———
+let attAllPlayers = [];
+
+function updateAttCount() {
+  const checked = document.querySelectorAll('.player-check-row.checked').length;
+  const el = document.getElementById('att-count');
+  if (el) el.textContent = checked + ' selected';
+}
+
+function checkAllPlayers(state) {
+  document.querySelectorAll('.player-check-row').forEach(row => {
+    row.classList.toggle('checked', state);
+    const box = row.querySelector('.player-check-box');
+    if (box) box.textContent = state ? '✓' : '';
+  });
+  updateAttCount();
+}
+
+async function openAttendanceModal() {
   try {
-    await API.post(`/sessions/${sessionId}/attendance`, { player_id, added_by });
-    showToast('Player added!', 'success');
+    attAllPlayers = await API.get('/players');
+    const currentIds = new Set((session.attendance || []).map(a => a.player_id));
+    const list = document.getElementById('att-checkbox-list');
+    list.innerHTML = '';
+
+    attAllPlayers.forEach(p => {
+      const isChecked = currentIds.has(p.id);
+      const row = document.createElement('div');
+      row.className = 'player-check-row' + (isChecked ? ' checked' : '');
+      row.dataset.playerId = p.id;
+
+      const avatar = p.photo
+        ? `<img src="${p.photo}" alt="${p.name}">`
+        : `<span>${p.emoji || '♠'}</span>`;
+
+      row.innerHTML =
+        `<div class="player-check-box">${isChecked ? '✓' : ''}</div>` +
+        `<div class="player-check-avatar">${avatar}</div>` +
+        `<div class="player-check-info">` +
+          `<div class="player-check-name">${p.name}</div>` +
+          `${p.alias ? `<div class="player-check-alias">"${p.alias}"</div>` : ''}` +
+        `</div>`;
+
+      row.addEventListener('click', () => {
+        const nowChecked = row.classList.toggle('checked');
+        row.querySelector('.player-check-box').textContent = nowChecked ? '✓' : '';
+        updateAttCount();
+      });
+      list.appendChild(row);
+    });
+    updateAttCount();
+    openModal('modal-add-attendance');
+  } catch(e) { showToast('Error loading players', 'error'); }
+}
+
+async function saveAttendance() {
+  const currentIds = new Set((session.attendance || []).map(a => a.player_id));
+  const checkedRows = document.querySelectorAll('.player-check-row');
+  const toAdd = [], toRemove = [];
+
+  checkedRows.forEach(row => {
+    const pid = row.dataset.playerId;
+    const isChecked = row.classList.contains('checked');
+    if (isChecked && !currentIds.has(pid)) toAdd.push(pid);
+    if (!isChecked && currentIds.has(pid)) toRemove.push(pid);
+  });
+
+  try {
+    // Add new players
+    for (const pid of toAdd) {
+      await API.post(`/sessions/${sessionId}/attendance`, { player_id: pid, added_by: 'Anonymous' });
+    }
+    // Remove unchecked players
+    for (const pid of toRemove) {
+      await fetch(`/api/sessions/${sessionId}/attendance/${pid}`, {
+        method: 'DELETE', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ editor_name: 'Anonymous' })
+      });
+    }
+    const changed = toAdd.length + toRemove.length;
+    showToast(changed > 0 ? `Attendance updated — ${toAdd.length} added, ${toRemove.length} removed ✓` : 'No changes made', 'success');
     closeModal('modal-add-attendance');
-    setTimeout(() => location.reload(), 600);
+    setTimeout(() => location.reload(), 700);
   } catch(err) { showToast(err.message, 'error'); }
 }
 

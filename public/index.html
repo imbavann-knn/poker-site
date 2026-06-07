@@ -118,6 +118,17 @@
         <label class="form-label">Notes</label>
         <textarea class="form-textarea" id="s-notes" placeholder="Anything to note for the night..."></textarea>
       </div>
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <label class="form-label" style="margin-bottom:0;">Who's Joining?</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllHome(true)">All</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllHome(false)">None</button>
+            <span id="si-att-count" style="font-size:.78rem;color:var(--cyan);align-self:center;font-family:'Orbitron',monospace;margin-left:4px;"></span>
+          </div>
+        </div>
+        <div id="si-player-checklist" style="display:flex;flex-direction:column;gap:6px;max-height:240px;overflow-y:auto;"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-session')">Cancel</button>
@@ -126,6 +137,15 @@
   </div>
 </div>
 
+<style>
+.player-check-row{display:flex;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;border:1px solid rgba(255,255,255,.06);border-radius:4px;transition:background .15s,border-color .15s;user-select:none;}
+.player-check-row:hover{background:rgba(255,45,135,.07);border-color:rgba(255,45,135,.25);}
+.player-check-row.checked{background:rgba(0,245,255,.06);border-color:rgba(0,245,255,.3);}
+.player-check-box{width:20px;height:20px;flex-shrink:0;border:2px solid rgba(255,255,255,.2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .15s;}
+.player-check-row.checked .player-check-box{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,245,255,.4);}
+.player-check-avatar{font-size:1.1rem;}.player-check-avatar img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,245,255,.3);}
+.player-check-name{font-weight:700;font-size:.88rem;}.player-check-alias{font-size:.7rem;color:var(--muted);}
+</style>
 <div id="toast"></div>
 <script src="/assets/js/api.js"></script>
 <script>
@@ -137,6 +157,45 @@ function handleBlindsChange() {
   const sel = document.getElementById('s-blinds').value;
   document.getElementById('s-blinds-custom').style.display = sel === 'custom' ? 'block' : 'none';
 }
+
+// Player checklist helpers (shared style injected inline)
+let homeAllPlayers = [];
+async function loadHomeChecklist() {
+  if (homeAllPlayers.length) return;
+  try {
+    homeAllPlayers = await API.get('/players');
+    const list = document.getElementById('si-player-checklist');
+    if (!list) return;
+    list.innerHTML = '';
+    homeAllPlayers.forEach(p => {
+      const row = document.createElement('div');
+      row.className = 'player-check-row';
+      row.dataset.playerId = p.id;
+      const avatar = p.photo ? `<img src="${p.photo}" alt="${p.name}">` : `<span>${p.emoji||'♠'}</span>`;
+      row.innerHTML = `<div class="player-check-box"></div><div class="player-check-avatar">${avatar}</div><div><div class="player-check-name">${p.name}</div>${p.alias?`<div class="player-check-alias">"${p.alias}"</div>`:''}</div>`;
+      row.addEventListener('click', () => {
+        const on = row.classList.toggle('checked');
+        row.querySelector('.player-check-box').textContent = on ? '✓' : '';
+        const cnt = document.getElementById('si-att-count');
+        if (cnt) cnt.textContent = list.querySelectorAll('.checked').length + ' selected';
+      });
+      list.appendChild(row);
+    });
+    const cnt = document.getElementById('si-att-count');
+    if (cnt) cnt.textContent = '0 selected';
+  } catch(e) {}
+}
+function checkAllHome(state) {
+  document.querySelectorAll('#si-player-checklist .player-check-row').forEach(r => {
+    r.classList.toggle('checked', state);
+    r.querySelector('.player-check-box').textContent = state ? '✓' : '';
+  });
+  const cnt = document.getElementById('si-att-count');
+  if (cnt) cnt.textContent = (state ? homeAllPlayers.length : 0) + ' selected';
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[onclick*="modal-add-session"]')) setTimeout(loadHomeChecklist, 50);
+});
 
 async function createSession() {
   const date = document.getElementById('s-date').value;
@@ -153,9 +212,14 @@ async function createSession() {
       notes: document.getElementById('s-notes').value,
       created_by: 'Anonymous',
     });
+    // Add checked players
+    const checkedIds = Array.from(document.querySelectorAll('#si-player-checklist .player-check-row.checked')).map(r => r.dataset.playerId);
+    for (const pid of checkedIds) {
+      await API.post(`/sessions/${session.id}/attendance`, { player_id: pid, added_by: 'Anonymous' });
+    }
     showToast('Session created! 🃏', 'success');
     closeModal('modal-add-session');
-    setTimeout(() => window.location.href = `/session?id=${session.id}`, 800);
+    setTimeout(() => window.location.href = `/session?id=${session.id}`, 600);
   } catch (err) {
     showToast(err.message, 'error');
   }

@@ -57,6 +57,18 @@
       </div>
       <div class="form-group"><label class="form-label">Blinds</label><select class="form-select" id="s-blinds" onchange="handleBlindsChange()"></select><input type="text" class="form-input mt-8" id="s-blinds-custom" placeholder="e.g. 0.50/1.00" style="display:none;"></div>
       <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="s-notes" placeholder="Anything to note..."></textarea></div>
+      <!-- Who's joining -->
+      <div class="form-group">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <label class="form-label" style="margin-bottom:0;">Who's Joining?</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllSession(true)">All</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="checkAllSession(false)">None</button>
+            <span id="s-att-count" style="font-size:.78rem;color:var(--cyan);align-self:center;font-family:'Orbitron',monospace;margin-left:4px;"></span>
+          </div>
+        </div>
+        <div id="s-player-checklist" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-session')">Cancel</button>
@@ -65,6 +77,15 @@
   </div>
 </div>
 
+<style>
+.player-check-row{display:flex;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;border:1px solid rgba(255,255,255,.06);border-radius:4px;transition:background .15s,border-color .15s;user-select:none;}
+.player-check-row:hover{background:rgba(255,45,135,.07);border-color:rgba(255,45,135,.25);}
+.player-check-row.checked{background:rgba(0,245,255,.06);border-color:rgba(0,245,255,.3);}
+.player-check-box{width:20px;height:20px;flex-shrink:0;border:2px solid rgba(255,255,255,.2);border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:.85rem;transition:all .15s;}
+.player-check-row.checked .player-check-box{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,245,255,.4);}
+.player-check-avatar{font-size:1.1rem;}.player-check-avatar img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,245,255,.3);}
+.player-check-name{font-weight:700;font-size:.88rem;}.player-check-alias{font-size:.7rem;color:var(--muted);}
+</style>
 <div id="toast"></div>
 <script src="/assets/js/api.js"></script>
 <script>
@@ -72,8 +93,62 @@ document.getElementById('s-blinds').innerHTML = blindsSelect();
 function handleBlindsChange() {
   document.getElementById('s-blinds-custom').style.display = document.getElementById('s-blinds').value === 'custom' ? 'block' : 'none';
 }
-// Init custom date picker (replaces the hidden input with styled calendar)
 initDatePicker('s-date', { placeholder: 'Pick a date...' });
+
+// Load players into checklist when modal opens
+let sessionAllPlayers = [];
+async function loadSessionChecklist() {
+  if (sessionAllPlayers.length) return; // already loaded
+  try {
+    sessionAllPlayers = await API.get('/players');
+    buildSessionChecklist('s-player-checklist', 's-att-count');
+  } catch(e) {}
+}
+
+function buildSessionChecklist(listId, countId) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = '';
+  sessionAllPlayers.forEach(p => {
+    const row = document.createElement('div');
+    row.className = 'player-check-row';
+    row.dataset.playerId = p.id;
+    const avatar = p.photo ? `<img src="${p.photo}" alt="${p.name}">` : `<span>${p.emoji||'♠'}</span>`;
+    row.innerHTML = `<div class="player-check-box"></div><div class="player-check-avatar">${avatar}</div><div><div class="player-check-name">${p.name}</div>${p.alias?`<div class="player-check-alias">"${p.alias}"</div>`:''}</div>`;
+    row.addEventListener('click', () => {
+      const on = row.classList.toggle('checked');
+      row.querySelector('.player-check-box').textContent = on ? '✓' : '';
+      updateSessionCount(countId);
+    });
+    list.appendChild(row);
+  });
+  updateSessionCount(countId);
+}
+
+function updateSessionCount(countId) {
+  const list = document.getElementById(countId === 's-att-count' ? 's-player-checklist' : 'si-player-checklist');
+  const el = document.getElementById(countId);
+  if (el && list) el.textContent = list.querySelectorAll('.checked').length + ' selected';
+}
+
+function checkAllSession(state) {
+  document.querySelectorAll('#s-player-checklist .player-check-row').forEach(r => {
+    r.classList.toggle('checked', state);
+    r.querySelector('.player-check-box').textContent = state ? '✓' : '';
+  });
+  updateSessionCount('s-att-count');
+}
+
+function getCheckedPlayerIds(listId) {
+  return Array.from(document.querySelectorAll(`#${listId} .player-check-row.checked`)).map(r => r.dataset.playerId);
+}
+
+// Open modal → load players
+document.querySelector('[onclick="openModal(\'modal-add-session\')"]')?.addEventListener('click', loadSessionChecklist);
+// Also load when the Add Session button is clicked in nav
+document.addEventListener('click', e => {
+  if (e.target.closest('[onclick*="modal-add-session"]')) setTimeout(loadSessionChecklist, 50);
+});
 
 let allSessions = [];
 let currentFilter = 'all';
@@ -121,9 +196,14 @@ async function createSession() {
       blinds, notes: document.getElementById('s-notes').value,
       created_by: 'Anonymous',
     });
+    // Add checked players to attendance
+    const playerIds = getCheckedPlayerIds('s-player-checklist');
+    for (const pid of playerIds) {
+      await API.post(`/sessions/${session.id}/attendance`, { player_id: pid, added_by: 'Anonymous' });
+    }
     showToast('Session created! 🃏', 'success');
     closeModal('modal-add-session');
-    setTimeout(() => window.location.href = `/session?id=${session.id}`, 800);
+    setTimeout(() => window.location.href = `/session?id=${session.id}`, 600);
   } catch(err) { showToast(err.message, 'error'); }
 }
 
