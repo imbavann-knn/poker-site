@@ -25,6 +25,7 @@ const defaultData = {
 const adapter = new JSONFileSync(DB_FILE);
 const lowdb = new LowSync(adapter, defaultData);
 lowdb.read();
+lowdb.write(); // Ensure file exists on disk immediately (creates it if new)
 
 console.log('✅ JSON DB ready —', Object.keys(lowdb.data).map(k => `${k}: ${lowdb.data[k].length}`).join(', '));
 
