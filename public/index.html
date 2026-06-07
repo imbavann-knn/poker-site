@@ -145,6 +145,32 @@
 .player-check-row.checked .player-check-box{background:var(--cyan);border-color:var(--cyan);box-shadow:0 0 8px rgba(0,245,255,.4);}
 .player-check-avatar{font-size:1.1rem;}.player-check-avatar img{width:28px;height:28px;border-radius:50%;object-fit:cover;border:1px solid rgba(0,245,255,.3);}
 .player-check-name{font-weight:700;font-size:.88rem;}.player-check-alias{font-size:.7rem;color:var(--muted);}
+
+/* Attendee avatar tooltip */
+.att-avatar-wrap { position:relative; display:inline-block; }
+.att-tooltip {
+  position:absolute; bottom:calc(100% + 8px); left:50%;
+  transform:translateX(-50%);
+  background:var(--surface); border:1px solid var(--cyan-border);
+  color:var(--white); font-size:.72rem; font-weight:600;
+  white-space:nowrap; padding:5px 10px; border-radius:4px;
+  box-shadow:0 4px 16px rgba(0,0,0,.5), 0 0 8px rgba(0,245,255,.15);
+  pointer-events:none; opacity:0;
+  transition:opacity .15s, transform .15s;
+  transform:translateX(-50%) translateY(4px);
+  z-index:100;
+}
+.att-avatar-wrap:hover .att-tooltip,
+.att-avatar-wrap.tip-open .att-tooltip {
+  opacity:1; transform:translateX(-50%) translateY(0);
+}
+/* Arrow */
+.att-tooltip::after {
+  content:''; position:absolute; top:100%; left:50%;
+  transform:translateX(-50%);
+  border:5px solid transparent;
+  border-top-color:var(--cyan-border);
+}
 </style>
 <!-- I WANNA JOIN modal -->
 <div class="modal-overlay" id="modal-join" style="z-index:600;">
@@ -302,13 +328,34 @@ async function loadHome() {
     const next = upcoming[0];
 
     if (next) {
+      // Fetch full session details to get attendance + player info
+      const nextDetail = await API.get(`/sessions/${next.id}`);
+      const attendance = nextDetail.attendance || [];
+
       const MAX_SLOTS = 9;
-      const confirmed = next.attendee_count || 0;
+      const confirmed = attendance.length;
       const slotsLeft = Math.max(0, MAX_SLOTS - confirmed);
       const slotsFull = confirmed >= 10;
       const slotsOver = confirmed > MAX_SLOTS;
       const slotColor = slotsFull ? 'var(--pink)' : slotsOver ? 'var(--yellow)' : confirmed >= 7 ? 'var(--yellow)' : 'var(--green)';
       const slotText = slotsFull ? '🔴 FULL (10/10)' : slotsOver ? `⚠️ ${confirmed}/9 — overflow` : `${confirmed}/${MAX_SLOTS} spots filled · ${slotsLeft} left`;
+
+      // Build attendee avatars HTML
+      const avatarsHtml = attendance.length ? `
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">
+          ${attendance.map(a => {
+            const label = a.name + (a.alias ? ` · "${a.alias}"` : '');
+            const avatarContent = a.photo
+              ? `<img src="${a.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+              : `<span style="font-size:1rem;">${a.emoji || '♠'}</span>`;
+            return `<div class="att-avatar-wrap" data-label="${label}">
+              <div style="width:36px;height:36px;border-radius:50%;background:var(--surface);border:2px solid var(--cyan-border);overflow:hidden;display:flex;align-items:center;justify-content:center;cursor:default;flex-shrink:0;">
+                ${avatarContent}
+              </div>
+              <div class="att-tooltip">${label}</div>
+            </div>`;
+          }).join('')}
+        </div>` : '';
 
       window._nextSessionId = next.id;
       window._nextSessionDT = next.date + 'T' + (next.time || '20:00') + ':00';
@@ -340,7 +387,8 @@ async function loadHome() {
                   return `<div style="width:22px;height:22px;border-radius:3px;border:1px solid ${filled?(isOver?'var(--yellow)':'var(--cyan)'):'rgba(255,255,255,.12)'};background:${filled?(isOver?'rgba(255,230,0,.25)':'rgba(0,245,255,.2)'):'transparent'};transition:all .3s;"></div>`;
                 }).join('')}
               </div>
-              <div style="font-size:.72rem;font-weight:700;color:${slotColor};">${slotText}</div>
+              <div style="font-size:.72rem;font-weight:700;color:${slotColor};margin-bottom:2px;">${slotText}</div>
+              ${avatarsHtml}
             </div>
 
             <!-- Countdown -->
@@ -408,6 +456,17 @@ setInterval(() => {
 }, 1000);
 
 loadHome();
+
+// Mobile tap for avatar tooltips
+document.addEventListener('click', e => {
+  const wrap = e.target.closest('.att-avatar-wrap');
+  // Close all others
+  document.querySelectorAll('.att-avatar-wrap.tip-open').forEach(el => {
+    if (el !== wrap) el.classList.remove('tip-open');
+  });
+  if (wrap) wrap.classList.toggle('tip-open');
+  else document.querySelectorAll('.att-avatar-wrap').forEach(el => el.classList.remove('tip-open'));
+});
 
 // ——— I WANNA JOIN modal ———
 const MAX_SLOTS = 9;
