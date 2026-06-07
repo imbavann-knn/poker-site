@@ -5,7 +5,7 @@ const dbUrl = process.env.DATABASE_URL || '';
 
 const pool = new Pool({
   connectionString: dbUrl,
-  ssl: false,
+  ssl: { rejectUnauthorized: false },
 });
 
 pool.on('error', (err) => {
