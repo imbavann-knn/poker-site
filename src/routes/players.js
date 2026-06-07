@@ -18,9 +18,9 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   try {
-    const { name, alias, emoji, joined_date, created_by } = req.body;
+    const { name, alias, emoji, joined_date, created_by, photo } = req.body;
     if (!name) return res.status(400).json({ error: 'Name is required' });
-    const player = db.players.create({ name, alias: alias||null, emoji: emoji||'♠', joined_date: joined_date||new Date().toISOString().slice(0,10), created_by: created_by||'Anonymous' });
+    const player = db.players.create({ name, alias: alias||null, emoji: emoji||'♠', joined_date: joined_date||new Date().toISOString().slice(0,10), created_by: created_by||'Anonymous', photo: photo||null });
     db.changelog.add('create','player',player.id, created_by||'Anonymous', `Added player: ${name}`, null, player);
     res.status(201).json(player);
   } catch (err) { res.status(500).json({ error: err.message }); }

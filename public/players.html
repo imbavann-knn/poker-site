@@ -5,6 +5,114 @@
 <title>Players — Wholesome ALL IN</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>♠</text></svg>">
 <link rel="stylesheet" href="/assets/css/style.css">
+<style>
+  /* ——— Player Card ——— */
+  .pc {
+    background: var(--card);
+    border: 1px solid rgba(255,45,135,0.2);
+    padding: 0;
+    cursor: pointer;
+    transition: border-color .3s, transform .3s, box-shadow .3s;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .pc:hover {
+    border-color: var(--pink-border);
+    transform: translateY(-4px);
+    box-shadow: 0 14px 36px rgba(255,45,135,0.15);
+  }
+  /* Photo / avatar area */
+  .pc-photo {
+    width: 100%; aspect-ratio: 1/1;
+    background: var(--surface);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,45,135,0.12);
+    position: relative;
+  }
+  .pc-photo img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .pc-photo .pc-emoji-fallback {
+    font-size: 3.5rem;
+    filter: drop-shadow(0 0 12px rgba(255,45,135,0.4));
+  }
+  .pc-photo-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(to top, rgba(13,2,33,.6) 0%, transparent 50%);
+    pointer-events: none;
+  }
+  /* Card body */
+  .pc-body { padding: 16px; flex: 1; }
+  .pc-name { font-weight: 700; font-size: 1rem; margin-bottom: 3px; }
+  .pc-alias { font-size: .72rem; color: var(--muted); margin-bottom: 10px; min-height: 1rem; }
+  .pc-profit { font-family: 'Orbitron', monospace; font-size: 1.2rem; font-weight: 900; margin-bottom: 4px; }
+  .pc-meta { font-size: .68rem; color: var(--muted); letter-spacing: .05em; }
+
+  /* Add card */
+  .pc-add {
+    border-style: dashed; border-color: rgba(255,255,255,.1);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; color: var(--muted); min-height: 260px;
+  }
+  .pc-add:hover { border-color: var(--pink-border); color: var(--pink); }
+  .pc-add-icon { font-size: 2rem; }
+
+  /* ——— Photo Upload ——— */
+  .photo-upload-area {
+    width: 100%; aspect-ratio: 1/1; max-width: 160px;
+    margin: 0 auto 18px;
+    background: var(--surface);
+    border: 2px dashed var(--pink-border);
+    border-radius: 4px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: border-color .2s, background .2s;
+  }
+  .photo-upload-area:hover { border-color: var(--pink); background: var(--pink-dim); }
+  .photo-upload-area img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .photo-upload-area .upload-hint {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    font-size: .72rem; color: var(--muted); letter-spacing: .1em; text-transform: uppercase;
+    pointer-events: none; z-index: 1;
+  }
+  .photo-upload-area .upload-hint span { font-size: 1.8rem; }
+  #photo-file { display: none; }
+  .photo-remove {
+    position: absolute; top: 6px; right: 6px; z-index: 2;
+    background: rgba(0,0,0,.6); border: none; color: #fff;
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+    font-size: .75rem; display: none; align-items: center; justify-content: center;
+  }
+
+  /* ——— Emoji Picker ——— */
+  .emoji-grid {
+    display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;
+  }
+  .emoji-btn {
+    width: 36px; height: 36px; font-size: 1.2rem;
+    background: var(--surface); border: 1px solid var(--border-subtle);
+    cursor: pointer; border-radius: 4px; transition: all .15s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .emoji-btn:hover { border-color: var(--pink-border); background: var(--pink-dim); }
+  .emoji-btn.selected { border-color: var(--pink); background: var(--pink-dim); box-shadow: 0 0 8px rgba(255,45,135,.3); }
+
+  /* ——— Detail modal photo ——— */
+  .detail-photo {
+    width: 100px; height: 100px; border-radius: 50%;
+    margin: 0 auto 14px; object-fit: cover;
+    border: 2px solid var(--pink-border);
+    box-shadow: 0 0 20px rgba(255,45,135,.25);
+  }
+  .detail-hex {
+    width: 100px; height: 100px; margin: 0 auto 14px;
+    background: var(--pink-dim); border: 2px solid var(--pink-border);
+    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 2.5rem; box-shadow: 0 0 20px rgba(255,45,135,.2);
+  }
+</style>
 </head>
 <body>
 <div class="bg-grid"></div><div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
@@ -25,7 +133,6 @@
     <h1 class="page-title">Our <span class="gradient">Players</span></h1>
     <p class="page-subtitle">The good, the great, and the ones who keep us funded.</p>
   </div>
-
   <div id="players-grid"></div>
 </div></div>
 
@@ -34,24 +141,64 @@
   <div class="footer-text">ADD PLAYERS ANYTIME · NO LOGIN NEEDED</div>
 </div></footer>
 
-<!-- ADD PLAYER MODAL -->
+<!-- ================================================
+     ADD PLAYER MODAL
+================================================ -->
 <div class="modal-overlay" id="modal-add-player">
-  <div class="modal">
-    <div class="modal-header"><span class="modal-title">Add New Player</span><button class="modal-close" onclick="closeModal('modal-add-player')">✕</button></div>
+  <div class="modal" style="max-width:500px;">
+    <div class="modal-header">
+      <span class="modal-title">Add New Player</span>
+      <button class="modal-close" onclick="closeModal('modal-add-player')">✕</button>
+    </div>
     <div class="modal-body">
-      <div class="form-group"><label class="form-label">Name *</label><input type="text" class="form-input" id="p-name" placeholder="Full name"></div>
-      <div class="form-row">
-        <div class="form-group"><label class="form-label">Nickname / Alias</label><input type="text" class="form-input" id="p-alias" placeholder='e.g. "The Surgeon"'></div>
-        <div class="form-group">
-          <label class="form-label">Emoji / Symbol</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;" id="emoji-picker">
-            ${['♠','♥','♦','♣','🃏','🎰','🤑','😎','👑','🦊','🐯','🔥','⚡','🌙','🎭','💎'].map(e => `<button type="button" onclick="selectEmoji('${e}')" class="emoji-btn" style="font-size:1.4rem;background:none;border:1px solid var(--border-subtle);width:38px;height:38px;cursor:pointer;transition:all .2s;">${e}</button>`).join('')}
+
+      <!-- Photo upload -->
+      <div class="form-group" style="text-align:center;">
+        <label class="form-label" style="display:block;margin-bottom:10px;">Profile Photo <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+        <div class="photo-upload-area" onclick="document.getElementById('photo-file').click()" id="photo-drop">
+          <img id="photo-preview" src="" alt="" style="display:none;">
+          <div class="upload-hint" id="upload-hint">
+            <span>📷</span>
+            <div>Click to upload</div>
+            <div style="font-size:.6rem;opacity:.6;">JPG, PNG · max 5MB</div>
           </div>
-          <input type="text" class="form-input" id="p-emoji" placeholder="Or type custom..." value="♠">
+          <button class="photo-remove" id="photo-remove" onclick="removePhoto(event)">✕</button>
         </div>
+        <input type="file" id="photo-file" accept="image/*" onchange="handlePhoto(this)">
+        <div id="photo-data" style="display:none;"></div>
       </div>
-      <div class="form-group"><label class="form-label">Joined Date</label><input type="date" class="form-input" id="p-joined"></div>
-      <div class="form-group"><label class="form-label">Your Name (for changelog)</label><input type="text" class="form-input" id="p-creator" placeholder="e.g. Eevann"></div>
+
+      <!-- Name -->
+      <div class="form-group">
+        <label class="form-label">Name *</label>
+        <input type="text" class="form-input" id="p-name" placeholder="Full name">
+      </div>
+
+      <!-- Nickname -->
+      <div class="form-group">
+        <label class="form-label">Nickname / Alias</label>
+        <input type="text" class="form-input" id="p-alias" placeholder='e.g. "The Surgeon"'>
+      </div>
+
+      <!-- Emoji -->
+      <div class="form-group">
+        <label class="form-label">Emoji Fallback <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(shown when no photo)</span></label>
+        <div class="emoji-grid" id="emoji-picker"></div>
+        <input type="text" class="form-input" id="p-emoji" placeholder="Or type custom symbol..." value="♠" style="font-size:1.1rem;">
+      </div>
+
+      <!-- Joined Date -->
+      <div class="form-group">
+        <label class="form-label">Joined Date</label>
+        <input type="date" class="form-input" id="p-joined">
+      </div>
+
+      <!-- Your name -->
+      <div class="form-group">
+        <label class="form-label">Your Name <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">(for changelog)</span></label>
+        <input type="text" class="form-input" id="p-creator" placeholder="e.g. Eevann">
+      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-player')">Cancel</button>
@@ -60,9 +207,11 @@
   </div>
 </div>
 
-<!-- PLAYER DETAIL MODAL -->
+<!-- ================================================
+     PLAYER DETAIL MODAL
+================================================ -->
 <div class="modal-overlay" id="modal-player-detail">
-  <div class="modal" style="max-width:640px">
+  <div class="modal" style="max-width:600px">
     <div class="modal-header">
       <span class="modal-title" id="pd-title">Player</span>
       <button class="modal-close" onclick="closeModal('modal-player-detail')">✕</button>
@@ -74,90 +223,200 @@
 <div id="toast"></div>
 <script src="/assets/js/api.js"></script>
 <script>
-function selectEmoji(e) {
-  document.getElementById('p-emoji').value = e;
-  document.querySelectorAll('.emoji-btn').forEach(b => b.style.borderColor = 'var(--border-subtle)');
-  event.target.style.borderColor = 'var(--pink)';
+// ——— Emoji Picker (generated via JS, not HTML template) ———
+const EMOJIS = ['♠','♥','♦','♣','🃏','🎰','🤑','😎','👑','🦊','🐯','🔥','⚡','🌙','🎭','💎','🍀','🦁','🐉','🌸'];
+
+function buildEmojiPicker() {
+  const container = document.getElementById('emoji-picker');
+  container.innerHTML = '';
+  EMOJIS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'emoji-btn';
+    btn.textContent = e;
+    if (e === '♠') btn.classList.add('selected');
+    btn.addEventListener('click', () => {
+      document.getElementById('p-emoji').value = e;
+      container.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    container.appendChild(btn);
+  });
+}
+buildEmojiPicker();
+
+// ——— Photo Handling ———
+let currentPhotoData = null;
+
+function handlePhoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) return showToast('Photo must be under 5MB', 'error');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    // Compress to max 300x300 using canvas
+    const img = new Image();
+    img.onload = function() {
+      const MAX = 300;
+      const canvas = document.createElement('canvas');
+      const ratio = Math.min(MAX / img.width, MAX / img.height);
+      canvas.width = Math.round(img.width * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      currentPhotoData = canvas.toDataURL('image/jpeg', 0.75);
+      showPhotoPreview(currentPhotoData);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
 }
 
+function showPhotoPreview(dataUrl) {
+  const preview = document.getElementById('photo-preview');
+  const hint = document.getElementById('upload-hint');
+  const removeBtn = document.getElementById('photo-remove');
+  preview.src = dataUrl;
+  preview.style.display = 'block';
+  hint.style.display = 'none';
+  removeBtn.style.display = 'flex';
+}
+
+function removePhoto(e) {
+  e.stopPropagation();
+  currentPhotoData = null;
+  document.getElementById('photo-preview').style.display = 'none';
+  document.getElementById('upload-hint').style.display = 'flex';
+  document.getElementById('photo-remove').style.display = 'none';
+  document.getElementById('photo-file').value = '';
+}
+
+// ——— Add Player ———
 async function addPlayer() {
   const name = document.getElementById('p-name').value.trim();
   if (!name) return showToast('Name is required', 'error');
+
+  const payload = {
+    name,
+    alias: document.getElementById('p-alias').value.trim(),
+    emoji: document.getElementById('p-emoji').value || '♠',
+    joined_date: document.getElementById('p-joined').value || null,
+    created_by: document.getElementById('p-creator').value.trim() || 'Anonymous',
+    photo: currentPhotoData || null,
+  };
+
   try {
-    await API.post('/players', {
-      name, alias: document.getElementById('p-alias').value,
-      emoji: document.getElementById('p-emoji').value || '♠',
-      joined_date: document.getElementById('p-joined').value || null,
-      created_by: document.getElementById('p-creator').value || 'Anonymous',
-    });
-    showToast(`${name} added! 🎉`, 'success');
+    await API.post('/players', payload);
+    showToast(name + ' added! 🎉', 'success');
     closeModal('modal-add-player');
-    setTimeout(() => location.reload(), 700);
+    // Reset form
+    document.getElementById('p-name').value = '';
+    document.getElementById('p-alias').value = '';
+    document.getElementById('p-emoji').value = '♠';
+    document.getElementById('p-joined').value = '';
+    document.getElementById('p-creator').value = '';
+    removePhoto({ stopPropagation: () => {} });
+    buildEmojiPicker();
+    setTimeout(() => init(), 700);
   } catch(err) { showToast(err.message, 'error'); }
 }
 
+// ——— Player Detail Modal ———
 async function openPlayerDetail(id) {
   try {
-    const p = await API.get(`/players/${id}`);
+    const p = await API.get('/players/' + id);
     const s = p.stats;
     const winRate = s.sessions_played > 0 ? Math.round(s.wins / s.sessions_played * 100) : 0;
     document.getElementById('pd-title').textContent = p.name;
-    document.getElementById('pd-body').innerHTML = `
-      <div style="text-align:center;margin-bottom:24px;">
-        <div class="player-hex" style="width:80px;height:80px;margin:0 auto 14px;font-size:2.5rem;">${p.emoji||'♠'}</div>
-        <div style="font-family:'Bebas Neue',cursive;font-size:2rem;letter-spacing:.06em;">${p.name}</div>
-        ${p.alias?`<div style="color:var(--muted);font-size:.9rem;margin-top:4px;">"${p.alias}"</div>`:''}
-        <div style="font-size:.72rem;color:var(--muted);margin-top:4px;letter-spacing:.15em;">Member since ${p.joined_date ? formatDate(p.joined_date) : '—'}</div>
-      </div>
-      <div class="stats-grid-3 mb-24" style="gap:10px;">
-        <div class="stat-box pink" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${formatMoney(s.total_profit)}</span><span class="stat-lbl">Career P/L</span></div>
-        <div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${s.sessions_played}</span><span class="stat-lbl">Sessions</span></div>
-        <div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.5rem;">${winRate}%</span><span class="stat-lbl">Win Rate</span></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:.82rem;">
-        <span style="color:var(--muted);">Best session: <span class="profit">${formatMoney(s.best_session)}</span></span>
-        <span style="color:var(--muted);">Worst session: <span class="loss">${formatMoney(s.worst_session)}</span></span>
-      </div>
-      ${p.history?.length ? `
-        <div style="font-size:.65rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>
-        <div style="max-height:200px;overflow-y:auto;">
-          ${p.history.map(h => `
-            <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">
-              <span style="color:var(--muted);">${formatDate(h.date)} · ${h.venue||'Game Night'}</span>
-              <span class="${profitClass(h.profit_loss)}">${formatMoney(h.profit_loss)}</span>
-            </div>`).join('')}
-        </div>` : '<div style="color:var(--muted);text-align:center;padding:20px;">No sessions recorded yet.</div>'}
-    `;
+
+    const avatarHtml = p.photo
+      ? '<img src="' + p.photo + '" alt="' + p.name + '" class="detail-photo">'
+      : '<div class="detail-hex">' + (p.emoji || '♠') + '</div>';
+
+    document.getElementById('pd-body').innerHTML =
+      '<div style="text-align:center;margin-bottom:24px;">' +
+        avatarHtml +
+        '<div style="font-family:\'Bebas Neue\',cursive;font-size:2rem;letter-spacing:.06em;">' + p.name + '</div>' +
+        (p.alias ? '<div style="color:var(--muted);font-size:.9rem;margin-top:4px;">"' + p.alias + '"</div>' : '') +
+        '<div style="font-size:.7rem;color:var(--muted);margin-top:6px;letter-spacing:.15em;">Member since ' + (p.joined_date ? formatDate(p.joined_date) : '—') + '</div>' +
+      '</div>' +
+      '<div class="stats-grid-3 mb-24" style="gap:10px;">' +
+        '<div class="stat-box pink" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + formatMoney(s.total_profit) + '</span><span class="stat-lbl">Career P/L</span></div>' +
+        '<div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + s.sessions_played + '</span><span class="stat-lbl">Sessions</span></div>' +
+        '<div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + winRate + '%</span><span class="stat-lbl">Win Rate</span></div>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:.82rem;padding:0 2px;">' +
+        '<span style="color:var(--muted);">Best: <span class="profit">' + formatMoney(s.best_session) + '</span></span>' +
+        '<span style="color:var(--muted);">Worst: <span class="loss">' + formatMoney(s.worst_session) + '</span></span>' +
+        '<span style="color:var(--muted);">' + s.wins + 'W · ' + s.losses + 'L</span>' +
+      '</div>' +
+      (p.history && p.history.length ?
+        '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
+        '<div style="max-height:220px;overflow-y:auto;">' +
+          p.history.map(h =>
+            '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
+              '<span style="color:var(--muted);">' + formatDate(h.date) + (h.venue ? ' · ' + h.venue : '') + '</span>' +
+              '<span class="' + profitClass(h.profit_loss) + '">' + formatMoney(h.profit_loss) + '</span>' +
+            '</div>'
+          ).join('') +
+        '</div>'
+        : '<div style="color:var(--muted);text-align:center;padding:24px;font-size:.85rem;">No sessions recorded yet.</div>'
+      );
+
     openModal('modal-player-detail');
   } catch(e) { showToast('Error loading player', 'error'); }
+}
+
+// ——— Render Player Grid ———
+function renderPlayerCard(p) {
+  const isPos = parseFloat(p.total_profit) >= 0;
+
+  // Photo or emoji avatar
+  const photoHtml = p.photo
+    ? '<img src="' + p.photo + '" alt="' + p.name + '">'
+    : '<div class="pc-emoji-fallback">' + (p.emoji || '♠') + '</div>';
+
+  const card = document.createElement('div');
+  card.className = 'pc';
+  card.onclick = () => openPlayerDetail(p.id);
+  card.innerHTML =
+    '<div class="pc-photo">' + photoHtml + '<div class="pc-photo-overlay"></div></div>' +
+    '<div class="pc-body">' +
+      '<div class="pc-name">' + p.name + '</div>' +
+      '<div class="pc-alias">' + (p.alias ? '"' + p.alias + '"' : (p.sessions_played + ' session' + (p.sessions_played !== 1 ? 's' : ''))) + '</div>' +
+      '<div class="pc-profit ' + (isPos ? 'profit' : 'loss') + '">' + formatMoney(p.total_profit) + '</div>' +
+      '<div class="pc-meta">' + p.sessions_played + ' sessions · ' + (p.sessions_played > 0 ? Math.round((p.wins || 0) / p.sessions_played * 100) : 0) + '% wins</div>' +
+    '</div>';
+  return card;
 }
 
 async function init() {
   try {
     const players = await API.get('/players');
     const el = document.getElementById('players-grid');
+    el.innerHTML = '';
+
     if (!players.length) {
-      el.innerHTML = `<div class="empty-state"><div class="icon">👥</div><h3>No players yet</h3><p>Add your squad using the button above!</p></div>`;
+      el.innerHTML = '<div class="empty-state"><div class="icon">👥</div><h3>No players yet</h3><p>Add your squad using the button above!</p></div>';
       return;
     }
-    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;">
-      ${players.map(p => {
-        const isPos = parseFloat(p.total_profit) >= 0;
-        return `<div class="player-card" onclick="openPlayerDetail('${p.id}')">
-          <div class="player-card-hex">${p.emoji||'♠'}</div>
-          <div class="player-card-name">${p.name}</div>
-          <div class="player-card-alias">${p.alias ? '"'+p.alias+'"' : p.sessions_played+' sessions'}</div>
-          <div class="player-card-profit ${isPos?'profit':'loss'}">${formatMoney(p.total_profit)}</div>
-          <div style="font-size:.7rem;color:var(--muted);margin-top:4px;">${p.sessions_played} sessions · ${p.sessions_played>0?Math.round(p.wins/p.sessions_played*100):0}% wins</div>
-        </div>`;
-      }).join('')}
-      <div class="player-card" onclick="openModal('modal-add-player')" style="border-style:dashed;border-color:var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;cursor:pointer;color:var(--muted);min-height:180px;">
-        <div style="font-size:2rem;">+</div>
-        <div style="font-size:.8rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;">Add Player</div>
-      </div>
-    </div>`;
+
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;';
+
+    players.forEach(p => grid.appendChild(renderPlayerCard(p)));
+
+    // Add player card
+    const addCard = document.createElement('div');
+    addCard.className = 'pc pc-add';
+    addCard.onclick = () => openModal('modal-add-player');
+    addCard.innerHTML = '<div class="pc-add-icon">+</div><div style="font-size:.75rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;">Add Player</div>';
+    grid.appendChild(addCard);
+
+    el.appendChild(grid);
   } catch(e) { console.error(e); }
 }
+
 init();
 </script>
 </body>
