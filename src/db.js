@@ -6,7 +6,7 @@ const host = dbUrl.split('@')[1]?.split('/')[0] || 'unknown';
 console.log('🔌 Connecting to DB host:', host);
 
 const sql = postgres(dbUrl, {
-  ssl: 'require',
+  ssl: 'prefer',
   max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
