@@ -118,10 +118,6 @@
         <label class="form-label">Notes</label>
         <textarea class="form-textarea" id="s-notes" placeholder="Anything to note for the night..."></textarea>
       </div>
-      <div class="form-group">
-        <label class="form-label">Your Name (for changelog)</label>
-        <input type="text" class="form-input" id="s-creator" placeholder="e.g. Eevann">
-      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-session')">Cancel</button>
@@ -155,7 +151,7 @@ async function createSession() {
       host: document.getElementById('s-host').value,
       blinds,
       notes: document.getElementById('s-notes').value,
-      created_by: document.getElementById('s-creator').value || 'Anonymous',
+      created_by: 'Anonymous',
     });
     showToast('Session created! 🃏', 'success');
     closeModal('modal-add-session');

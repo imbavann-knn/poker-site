@@ -34,7 +34,6 @@
     <div class="modal-header"><span class="modal-title">Add Player to Session</span><button class="modal-close" onclick="closeModal('modal-add-attendance')">✕</button></div>
     <div class="modal-body">
       <div class="form-group"><label class="form-label">Select Player</label><select class="form-select" id="att-player"></select></div>
-      <div class="form-group"><label class="form-label">Your Name</label><input type="text" class="form-input" id="att-editor" placeholder="e.g. Eevann"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-add-attendance')">Cancel</button>
@@ -51,7 +50,6 @@
       <p style="font-size:.82rem;color:var(--muted);margin-bottom:18px;">Enter profit (+) or loss (−) for each player. Numbers should balance to $0.</p>
       <div id="results-form"></div>
       <div id="results-balance" style="margin-top:16px;padding:12px;background:var(--surface);border:1px solid var(--border-subtle);font-family:'Orbitron',monospace;font-size:.85rem;text-align:center;"></div>
-      <div class="form-group mt-16"><label class="form-label">Your Name</label><input type="text" class="form-input" id="res-editor" placeholder="e.g. Eevann"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-results')">Cancel</button>
@@ -75,7 +73,6 @@
       </div>
       <div class="form-group"><label class="form-label">Blinds</label><select class="form-select" id="es-blinds" onchange="handleEsBlinds()"></select><input type="text" class="form-input mt-8" id="es-blinds-custom" style="display:none;"></div>
       <div class="form-group"><label class="form-label">Notes</label><textarea class="form-textarea" id="es-notes"></textarea></div>
-      <div class="form-group"><label class="form-label">Your Name</label><input type="text" class="form-input" id="es-editor"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modal-edit-session')">Cancel</button>
@@ -234,7 +231,7 @@ async function submitResults() {
   if (!results.length) return showToast('Enter at least one result', 'error');
   const total = results.reduce((s, r) => s + r.profit_loss, 0);
   if (Math.abs(total) > 0.01) return showToast('Results must balance to $0!', 'error');
-  const editor = document.getElementById('res-editor').value || 'Anonymous';
+  const editor = 'Anonymous';
   try {
     await API.post(`/sessions/${sessionId}/results`, { results, entered_by: editor });
     showToast('Results saved! ✓', 'success');
@@ -245,7 +242,7 @@ async function submitResults() {
 
 async function addAttendance() {
   const player_id = document.getElementById('att-player').value;
-  const added_by = document.getElementById('att-editor').value || 'Anonymous';
+  const added_by = 'Anonymous';
   if (!player_id) return showToast('Select a player', 'error');
   try {
     await API.post(`/sessions/${sessionId}/attendance`, { player_id, added_by });
@@ -257,7 +254,7 @@ async function addAttendance() {
 
 async function removeAttendance(playerId, name) {
   if (!confirm(`Remove ${name} from this session?`)) return;
-  const editor = prompt('Your name (for changelog):', '') || 'Anonymous';
+  const editor = 'Anonymous';
   try {
     await fetch(`/api/sessions/${sessionId}/attendance/${playerId}`, {
       method: 'DELETE', headers: {'Content-Type':'application/json'},
@@ -309,7 +306,7 @@ async function updateSession() {
       venue: document.getElementById('es-venue').value,
       host: document.getElementById('es-host').value,
       blinds, notes: document.getElementById('es-notes').value,
-      editor_name: document.getElementById('es-editor').value || 'Anonymous',
+      editor_name: 'Anonymous',
     });
     showToast('Session updated!', 'success');
     closeModal('modal-edit-session');
