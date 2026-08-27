@@ -100,6 +100,20 @@
   .emoji-btn:hover { border-color: var(--pink-border); background: var(--pink-dim); }
   .emoji-btn.selected { border-color: var(--pink); background: var(--pink-dim); box-shadow: 0 0 8px rgba(255,45,135,.3); }
 
+  /* ——— P/L Chart ——— */
+  .pl-chart-wrap {
+    margin: 0 0 20px;
+    background: rgba(0,0,0,.25);
+    border: 1px solid rgba(0,245,255,.1);
+    border-radius: 4px;
+    padding: 14px 14px 8px;
+  }
+  .pl-chart-label {
+    font-size: .6rem; font-weight: 700; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--cyan); margin-bottom: 10px;
+  }
+  #pl-canvas { width: 100%; display: block; border-radius: 2px; }
+
   /* ——— Detail modal photo ——— */
   .detail-photo {
     width: 100px; height: 100px; border-radius: 50%;
@@ -128,6 +142,7 @@
   </ul>
   <a href="#" class="nav-btn" onclick="openModal('modal-add-player');return false;">+ Add Player</a>
 </div></nav>
+<button class="mobile-fab" onclick="openModal('modal-add-player')" title="Add Player">+</button>
 
 <div class="page-wrap"><div class="container">
   <div class="page-header">
@@ -565,7 +580,8 @@ async function openPlayerDetail(id) {
         '<span style="color:var(--muted);">' + s.wins + 'W · ' + s.losses + 'L</span>' +
       '</div>' +
       (p.history && p.history.length
-        ? '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
+        ? '<div class="pl-chart-wrap"><div class="pl-chart-label">Career P/L Curve</div><canvas id="pl-canvas" height="140"></canvas></div>' +
+          '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
           '<div style="max-height:220px;overflow-y:auto;">' +
             p.history.map(h =>
               '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
@@ -576,6 +592,11 @@ async function openPlayerDetail(id) {
           '</div>'
         : '<div style="color:var(--muted);text-align:center;padding:24px;font-size:.85rem;">No sessions recorded yet.</div>'
       );
+
+    // Draw P/L chart if history exists
+    if (p.history && p.history.length) {
+      requestAnimationFrame(() => drawPLChart(p.history));
+    }
 
     // Pre-fill edit form
     document.getElementById('edit-name').value = p.name || '';
@@ -600,6 +621,136 @@ async function openPlayerDetail(id) {
     openModal('modal-player-detail');
   } catch(e) { showToast('Error loading player', 'error'); }
 }
+
+// ——— P/L Chart ———
+function drawPLChart(history) {
+  const canvas = document.getElementById('pl-canvas');
+  if (!canvas) return;
+  const W = canvas.offsetWidth;
+  if (!W || W < 10) return; // not yet laid out — skip safely
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const H = 140;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Build cumulative P/L (history is newest-first, reverse for chart)
+  const sessions = [...history].reverse();
+  const points = [{ x: 0, y: 0, pl: 0, date: null }]; // start at $0
+  let running = 0;
+  sessions.forEach((h, i) => {
+    running += h.profit_loss;
+    points.push({ x: i + 1, y: running, pl: h.profit_loss, date: h.date });
+  });
+
+  const PAD = { t: 10, r: 14, b: 28, l: 52 };
+  const cw = W - PAD.l - PAD.r;
+  const ch = H - PAD.t - PAD.b;
+
+  const ys = points.map(p => p.y);
+  const yMin = Math.min(0, ...ys);
+  const yMax = Math.max(0, ...ys);
+  const yRange = yMax - yMin || 1;
+  if (points.length < 2) return; // need at least 2 sessions to draw a line
+  const xRange = points.length - 1;
+
+  const toX = i => PAD.l + (i / xRange) * cw;
+  const toY = v => PAD.t + ch - ((v - yMin) / yRange) * ch;
+  const zeroY = toY(0);
+
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,.06)';
+  ctx.lineWidth = 1;
+  const ticks = 4;
+  for (let i = 0; i <= ticks; i++) {
+    const v = yMin + (yRange / ticks) * i;
+    const y = toY(v);
+    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.3)';
+    ctx.font = `${10}px "Orbitron", monospace`;
+    ctx.textAlign = 'right';
+    ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(0), PAD.l - 6, y + 3.5);
+  }
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  ctx.setLineDash([4, 4]);
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(PAD.l, zeroY); ctx.lineTo(W - PAD.r, zeroY); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Area fill (above zero = green tint, below = red tint)
+  if (points.length > 1) {
+    // Positive area
+    const gradPos = ctx.createLinearGradient(0, PAD.t, 0, zeroY);
+    gradPos.addColorStop(0, 'rgba(0,245,255,.22)');
+    gradPos.addColorStop(1, 'rgba(0,245,255,.02)');
+    ctx.fillStyle = gradPos;
+    ctx.beginPath();
+    ctx.moveTo(toX(0), zeroY);
+    points.forEach((p, i) => ctx.lineTo(toX(i), Math.min(toY(p.y), zeroY)));
+    ctx.lineTo(toX(points.length - 1), zeroY);
+    ctx.closePath(); ctx.fill();
+
+    // Negative area
+    const gradNeg = ctx.createLinearGradient(0, zeroY, 0, PAD.t + ch);
+    gradNeg.addColorStop(0, 'rgba(255,45,135,.04)');
+    gradNeg.addColorStop(1, 'rgba(255,45,135,.22)');
+    ctx.fillStyle = gradNeg;
+    ctx.beginPath();
+    ctx.moveTo(toX(0), zeroY);
+    points.forEach((p, i) => ctx.lineTo(toX(i), Math.max(toY(p.y), zeroY)));
+    ctx.lineTo(toX(points.length - 1), zeroY);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Line
+  const finalVal = points[points.length - 1]?.y || 0;
+  const lineColor = finalVal >= 0 ? '#00F5FF' : '#FF2D87';
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.shadowColor = lineColor;
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  points.forEach((p, i) => i === 0 ? ctx.moveTo(toX(i), toY(p.y)) : ctx.lineTo(toX(i), toY(p.y)));
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // Dots at each session
+  points.forEach((p, i) => {
+    const dotColor = p.pl >= 0 ? '#00F5FF' : '#FF2D87';
+    ctx.fillStyle = dotColor;
+    ctx.shadowColor = dotColor; ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(toX(i), toY(p.y), 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  });
+
+  // X-axis session labels (show first, last, and evenly spaced up to 5)
+  ctx.fillStyle = 'rgba(255,255,255,.3)';
+  ctx.font = `9px "Exo 2", sans-serif`;
+  ctx.textAlign = 'center';
+  const labelIdxs = new Set([0, points.length - 1]);
+  if (points.length > 2) {
+    const step = Math.max(1, Math.floor(points.length / 4));
+    for (let i = step; i < points.length - 1; i += step) labelIdxs.add(i);
+  }
+  labelIdxs.forEach(i => {
+    const p = points[i];
+    if (!p) return;
+    const label = p.date ? p.date.slice(5) : '#' + (i + 1); // MM-DD
+    ctx.fillText(label, toX(i), H - 6);
+  });
+}
+
+function profitClass(v) { return v >= 0 ? 'profit' : 'loss'; }
 
 // ——— Render Player Grid ———
 function renderPlayerCard(p) {

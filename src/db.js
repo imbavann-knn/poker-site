@@ -138,7 +138,7 @@ const db = {
         .filter(a => a.session_id === id)
         .map(a => {
           const p = lowdb.data.players.find(pl => pl.id === a.player_id) || {};
-          return { ...a, name: p.name, alias: p.alias, emoji: p.emoji };
+          return { ...a, name: p.name, alias: p.alias, emoji: p.emoji, photo: p.photo || null };
         });
       const results = lowdb.data.session_results
         .filter(r => r.session_id === id)

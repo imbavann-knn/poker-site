@@ -28,6 +28,7 @@
     <a href="#" class="nav-btn" onclick="openModal('modal-add-session'); return false;">+ Add Session</a>
   </div>
 </nav>
+<button class="mobile-fab" onclick="openModal('modal-add-session')" title="Add Session">+</button>
 
 <div class="page-wrap">
 <div class="container">
@@ -138,6 +139,35 @@
 </div>
 
 <style>
+/* Next Showdown responsive grid */
+.ng-card { background:var(--card); border:1px solid var(--cyan-border); box-shadow:0 0 30px rgba(0,245,255,0.08); }
+.ng-panels { display:flex; flex-wrap:wrap; border-bottom:1px solid var(--cyan-border); }
+.ng-panel { padding:18px 22px; border-right:1px solid var(--cyan-border); flex:1; min-width:150px; }
+.ng-panel:last-child { border-right:none; }
+.ng-panel-slots { min-width:180px; flex:2; }
+.ng-panel-countdown { flex:1.5; min-width:160px; }
+.ng-label { font-size:.58rem; font-weight:700; letter-spacing:.25em; text-transform:uppercase; color:var(--cyan); margin-bottom:6px; }
+.ng-value { font-family:'Bebas Neue',cursive; font-size:1.55rem; letter-spacing:.06em; }
+.ng-meta { font-size:.78rem; color:var(--muted); margin-top:4px; }
+.ng-footer { padding:14px 22px; display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; background:rgba(0,245,255,.03); }
+.ng-cta-text { font-family:'Bebas Neue',cursive; font-size:1rem; letter-spacing:.1em; }
+.ng-cta-sub { font-size:.7rem; color:var(--muted); margin-top:2px; }
+.ng-btns { display:flex; gap:8px; flex-wrap:wrap; }
+@media (max-width:768px) {
+  .ng-panel { min-width:calc(50% - 1px); border-right:none; border-bottom:1px solid var(--cyan-border); flex:none; width:50%; padding:14px 16px; }
+  .ng-panel-slots { width:100%; min-width:100%; border-right:none; }
+  .ng-panel-countdown { width:50%; }
+  .ng-panels { flex-wrap:wrap; }
+  .ng-value { font-size:1.25rem; }
+  .ng-footer { padding:12px 16px; }
+  .ng-btns { width:100%; }
+  .ng-btns .btn { flex:1; justify-content:center; }
+}
+@media (max-width:420px) {
+  .ng-panel { width:100%; border-right:none; }
+  .ng-panel-countdown { width:100%; }
+}
+
 .player-check-row{display:flex;align-items:center;gap:12px;padding:9px 14px;cursor:pointer;border:1px solid rgba(255,255,255,.06);border-radius:4px;transition:background .15s,border-color .15s;user-select:none;}
 .player-check-row:hover{background:rgba(255,45,135,.07);border-color:rgba(255,45,135,.25);}
 .player-check-row.checked{background:rgba(0,245,255,.06);border-color:rgba(0,245,255,.3);}
@@ -300,8 +330,10 @@ async function loadHome() {
     const maxAbs = Math.max(...leaderboard.map(p => Math.abs(p.total_profit)));
     lbEl.innerHTML = `<table class="lb-table">
       <thead class="lb-head"><tr>
-        <th>#</th><th>Player</th><th class="right" style="text-align:center">Games</th>
-        <th>Chart</th><th class="right">Net P/L</th>
+        <th style="width:40px">#</th><th>Player</th>
+        <th class="lb-hide-mobile" style="text-align:center">Games</th>
+        <th class="lb-hide-mobile">Chart</th>
+        <th class="right">Net P/L</th>
       </tr></thead>
       <tbody>${leaderboard.slice(0, 6).map((p, i) => {
         const pct = maxAbs ? (Math.abs(p.total_profit) / maxAbs * 100) : 0;
@@ -309,11 +341,11 @@ async function loadHome() {
         return `<tr class="lb-row">
           <td class="lb-rank ${i === 0 ? 'gold' : ''}">${String(i+1).padStart(2,'0')}</td>
           <td><div class="lb-player">
-            <div class="player-hex">${p.emoji || '♠'}</div>
-            <div><div class="player-name">${p.name}</div><div class="player-alias">${p.alias || '—'}</div></div>
+            <div class="player-hex">${p.photo?`<img src="${p.photo}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`:p.emoji||'♠'}</div>
+            <div><div class="player-name">${p.name}</div><div class="player-alias">${p.alias||''}</div></div>
           </div></td>
-          <td class="lb-games">${p.sessions_played}</td>
-          <td class="lb-bar-cell"><div class="neon-bar-wrap"><div class="neon-bar ${pos?'profit':'loss'}" style="width:${pct}px; max-width:120px"></div></div></td>
+          <td class="lb-games lb-hide-mobile">${p.sessions_played}</td>
+          <td class="lb-bar-cell lb-hide-mobile"><div class="neon-bar-wrap"><div class="neon-bar ${pos?'profit':'loss'}" style="width:${Math.max(4,pct)}px;max-width:100px"></div></div></td>
           <td class="lb-profit ${pos?'pos':'neg'}">${formatMoney(p.total_profit)}</td>
         </tr>`;
       }).join('')}</tbody>
@@ -324,7 +356,15 @@ async function loadHome() {
   try {
     const sessions = await API.get('/sessions');
     const nextEl = document.getElementById('next-game-section');
-    const upcoming = sessions.filter(s => s.status === 'planned').sort((a,b) => new Date(a.date)-new Date(b.date));
+    const now = new Date();
+    const upcoming = sessions
+      .filter(s => s.status === 'planned')
+      .filter(s => {
+        // Keep if session datetime is less than 24h in the past
+        const dt = new Date(s.date + 'T' + (s.time || '20:00') + ':00');
+        return (now - dt) < 24 * 60 * 60 * 1000;
+      })
+      .sort((a,b) => new Date(a.date) - new Date(b.date));
     const next = upcoming[0];
 
     if (next) {
@@ -361,61 +401,59 @@ async function loadHome() {
       window._nextSessionDT = next.date + 'T' + (next.time || '20:00') + ':00';
 
       nextEl.innerHTML = `
-        <div style="background:var(--card);border:1px solid var(--cyan-border);box-shadow:0 0 30px rgba(0,245,255,0.08);">
-
-          <!-- TOP ROW: session info + countdown -->
-          <div style="display:flex;flex-wrap:wrap;align-items:stretch;border-bottom:1px solid var(--cyan-border);">
-
-            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:200px;">
-              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Next Showdown</div>
-              <div style="font-family:'Bebas Neue',cursive;font-size:1.7rem;letter-spacing:.06em;">${formatDate(next.date)}</div>
-              <div style="font-size:.8rem;color:var(--muted);margin-top:4px;">${next.venue || 'TBD'} · $${next.blinds}</div>
+        <div class="ng-card">
+          <div class="ng-panels">
+            <div class="ng-panel">
+              <div class="ng-label">Next Showdown</div>
+              <div class="ng-value">${formatDate(next.date)}</div>
+              <div class="ng-meta">${next.venue || 'TBD'} · $${next.blinds}</div>
             </div>
-
-            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:160px;">
-              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:6px;">Host</div>
-              <div style="font-family:'Bebas Neue',cursive;font-size:1.7rem;">${next.host || 'TBD'}</div>
+            <div class="ng-panel">
+              <div class="ng-label">Host</div>
+              <div class="ng-value">${next.host || 'TBD'}</div>
+              <div class="ng-meta">${next.time || '20:00'}</div>
             </div>
-
-            <!-- Slots -->
-            <div style="padding:22px 28px;border-right:1px solid var(--cyan-border);min-width:180px;">
-              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--cyan);margin-bottom:8px;">Slots</div>
+            <div class="ng-panel ng-panel-slots">
+              <div class="ng-label">Slots</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
                 ${Array.from({length:10},(_,i) => {
                   const filled = i < confirmed;
                   const isOver = i >= MAX_SLOTS;
-                  return `<div style="width:22px;height:22px;border-radius:3px;border:1px solid ${filled?(isOver?'var(--yellow)':'var(--cyan)'):'rgba(255,255,255,.12)'};background:${filled?(isOver?'rgba(255,230,0,.25)':'rgba(0,245,255,.2)'):'transparent'};transition:all .3s;"></div>`;
+                  return `<div style="width:22px;height:22px;border-radius:3px;border:1px solid ${filled?(isOver?'var(--yellow)':'var(--cyan)'):'rgba(255,255,255,.12)'};background:${filled?(isOver?'rgba(255,230,0,.25)':'rgba(0,245,255,.2)'):'transparent'};"></div>`;
                 }).join('')}
               </div>
-              <div style="font-size:.72rem;font-weight:700;color:${slotColor};margin-bottom:2px;">${slotText}</div>
+              <div style="font-size:.72rem;font-weight:700;color:${slotColor};">${slotText}</div>
               ${avatarsHtml}
             </div>
-
-            <!-- Countdown -->
-            <div style="padding:22px 28px;flex:1;min-width:200px;">
-              <div style="font-size:.6rem;font-weight:700;letter-spacing:.25em;text-transform:uppercase;color:var(--yellow);margin-bottom:6px;">Countdown</div>
-              <div style="font-family:'Orbitron',monospace;font-size:1.8rem;font-weight:900;color:var(--yellow);text-shadow:0 0 16px rgba(255,230,0,.5);letter-spacing:.05em;" id="cd-display">--·--·--·--</div>
-              <div style="font-size:.58rem;color:var(--muted);letter-spacing:.18em;margin-top:4px;">D · H · M · S</div>
+            <div class="ng-panel ng-panel-countdown">
+              <div class="ng-label" style="color:var(--yellow);">Countdown</div>
+              <div style="font-family:'Orbitron',monospace;font-size:1.6rem;font-weight:900;color:var(--yellow);text-shadow:0 0 16px rgba(255,230,0,.5);letter-spacing:.04em;" id="cd-display">--·--·--·--</div>
+              <div style="font-size:.55rem;color:var(--muted);letter-spacing:.16em;margin-top:4px;">D · H · M · S</div>
             </div>
           </div>
-
-          <!-- BOTTOM ROW: CTA + buttons -->
-          <div style="padding:16px 28px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;background:rgba(0,245,255,.03);">
+          <div class="ng-footer">
             <div>
-              <div style="font-family:'Bebas Neue',cursive;font-size:1.1rem;letter-spacing:.1em;color:var(--white);">🎯 INDICATE YOUR ATTENDANCE NOW</div>
-              <div style="font-size:.72rem;color:var(--muted);margin-top:2px;">Let everyone know if you're in for the next session</div>
+              <div class="ng-cta-text">🎯 INDICATE YOUR ATTENDANCE NOW</div>
+              <div class="ng-cta-sub">Let everyone know if you're in</div>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="ng-btns">
               <a href="/session?id=${next.id}" class="btn btn-outline btn-sm">View Details</a>
-              <button class="btn btn-primary btn-sm" onclick="openJoinModal('${next.id}')" style="background:linear-gradient(135deg,var(--pink),var(--purple));box-shadow:0 0 20px rgba(255,45,135,.4);">🙋 I WANNA JOIN!</button>
+              <button class="btn btn-primary btn-sm" onclick="openJoinModal('${next.id}')" style="background:linear-gradient(135deg,var(--pink),var(--purple));">🙋 I WANNA JOIN!</button>
             </div>
           </div>
         </div>`;
     } else {
-      nextEl.innerHTML = `<div style="text-align:center;padding:32px 0;">
-        <div style="color:var(--muted);margin-bottom:16px;">No upcoming sessions planned.</div>
-        <a href="#" class="btn btn-primary" onclick="openModal('modal-add-session');return false;">+ Plan Next Game</a>
-      </div>`;
+      nextEl.innerHTML = `
+        <div style="background:var(--card);border:1px solid var(--pink-border);padding:32px 24px;text-align:center;">
+          <div style="font-size:2.5rem;margin-bottom:12px;">🃏</div>
+          <div style="font-family:'Bebas Neue',cursive;font-size:1.8rem;letter-spacing:.08em;margin-bottom:8px;">No Game Scheduled Yet</div>
+          <div style="color:var(--muted);font-size:.9rem;margin-bottom:24px;max-width:340px;margin-left:auto;margin-right:auto;">
+            The table is empty. Someone's gotta step up and host — are you that someone?
+          </div>
+          <button class="btn btn-primary" onclick="openModal('modal-add-session')" style="background:linear-gradient(135deg,var(--pink),var(--purple));box-shadow:0 0 24px rgba(255,45,135,.4);font-size:.9rem;padding:12px 28px;">
+            🎯 I'll Host the Next Game
+          </button>
+        </div>`;
     }
 
     // Recent sessions grid

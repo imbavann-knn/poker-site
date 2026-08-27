@@ -121,7 +121,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Mark active nav link
+// Mark active nav link + inject mobile hamburger
 document.addEventListener('DOMContentLoaded', () => {
   const path = window.location.pathname;
   document.querySelectorAll('.nav-links a').forEach(a => {
@@ -130,6 +130,57 @@ document.addEventListener('DOMContentLoaded', () => {
       a.classList.add('active');
     }
   });
+
+  // ——— Mobile hamburger ———
+  const navInner = document.querySelector('.nav-inner');
+  if (!navInner) return;
+
+  // Hamburger button
+  const burger = document.createElement('button');
+  burger.className = 'hamburger';
+  burger.setAttribute('aria-label', 'Menu');
+  burger.innerHTML = '<span></span><span></span><span></span>';
+  navInner.appendChild(burger);
+
+  // Drawer
+  const drawer = document.createElement('div');
+  drawer.className = 'mobile-drawer';
+  drawer.innerHTML =
+    '<div class="mobile-drawer-backdrop"></div>' +
+    '<div class="mobile-drawer-panel">' +
+      '<div class="mobile-drawer-logo">♠ Wholesome ALL IN</div>' +
+      '<ul class="mobile-drawer-links">' +
+        '<li><a href="/">Home</a></li>' +
+        '<li><a href="/sessions">Sessions</a></li>' +
+        '<li><a href="/leaderboard">Leaderboard</a></li>' +
+        '<li><a href="/players">Players</a></li>' +
+        '<li><a href="/changelog">Changelog</a></li>' +
+      '</ul>' +
+    '</div>';
+  document.body.appendChild(drawer);
+
+  // Mark active link in drawer
+  drawer.querySelectorAll('a').forEach(a => {
+    const href = a.getAttribute('href');
+    if (href === path || (href !== '/' && path.startsWith(href))) {
+      a.classList.add('active');
+    }
+  });
+
+  function openDrawer() {
+    drawer.classList.add('open');
+    burger.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeDrawer() {
+    drawer.classList.remove('open');
+    burger.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  burger.addEventListener('click', () => drawer.classList.contains('open') ? closeDrawer() : openDrawer());
+  drawer.querySelector('.mobile-drawer-backdrop').addEventListener('click', closeDrawer);
+  drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', closeDrawer));
 });
 
 // =============================================
