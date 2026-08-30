@@ -336,7 +336,7 @@ async function loadHome() {
       </tr></thead>
       <tbody>${leaderboard.slice(0, 6).map((p, i) => {
         const winRate = p.sessions_played > 0 ? Math.round(p.wins / p.sessions_played * 100) : 0;
-        const st = standing(p.total_profit, { wins: p.wins });
+        const st = standing(p.total_profit);
         return `<tr class="lb-row">
           <td class="lb-rank ${i === 0 ? 'gold' : ''}">${String(i+1).padStart(2,'0')}</td>
           <td><div class="lb-player">
@@ -345,7 +345,7 @@ async function loadHome() {
           </div></td>
           <td class="lb-games lb-hide-mobile">${p.sessions_played}</td>
           <td class="lb-bar-cell lb-hide-mobile"><div class="neon-bar-wrap"><div class="neon-bar profit" style="width:${Math.max(4,winRate)}px;max-width:100px"></div></div></td>
-          <td class="lb-profit ${st.cls==='profit'?'pos':'neutral'}">${st.text}</td>
+          <td class="lb-profit ${standingCellCls(st.cls)}">${st.text}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;

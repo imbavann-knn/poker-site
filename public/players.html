@@ -570,10 +570,10 @@ async function openPlayerDetail(id) {
         '<div style="font-size:.7rem;color:var(--muted);margin-top:6px;letter-spacing:.15em;">Member since ' + (p.joined_date ? formatDate(p.joined_date) : '—') + '</div>' +
       '</div>' +
       (function() {
-        const career = standing(s.total_profit, { wins: s.wins });
+        const career = standing(s.total_profit);
         const best = standingNight(s.best_session);
         return '<div class="stats-grid-3 mb-24" style="gap:10px;">' +
-          '<div class="stat-box pink" style="padding:16px;"><span class="stat-val ' + (career.cls === 'profit' ? 'profit' : '') + '" style="font-size:1.4rem;">' + career.text + '</span><span class="stat-lbl">Standing</span></div>' +
+          '<div class="stat-box pink" style="padding:16px;"><span class="stat-val ' + career.cls + '" style="font-size:1.4rem;">' + career.text + '</span><span class="stat-lbl">Standing</span></div>' +
           '<div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + s.sessions_played + '</span><span class="stat-lbl">Sessions</span></div>' +
           '<div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + winRate + '%</span><span class="stat-lbl">Win Rate</span></div>' +
         '</div>' +
@@ -633,7 +633,7 @@ async function openPlayerDetail(id) {
 
 // ——— Render Player Grid ———
 function renderPlayerCard(p) {
-  const st = standing(p.total_profit, { wins: p.wins });
+  const st = standing(p.total_profit);
 
   // Photo or emoji avatar
   const photoHtml = p.photo
@@ -648,7 +648,7 @@ function renderPlayerCard(p) {
     '<div class="pc-body">' +
       '<div class="pc-name">' + p.name + '</div>' +
       '<div class="pc-alias">' + (p.alias ? '"' + p.alias + '"' : (p.sessions_played + ' session' + (p.sessions_played !== 1 ? 's' : ''))) + '</div>' +
-      '<div class="pc-profit ' + (st.cls === 'profit' ? 'profit' : 'neutral') + '">' + st.text + '</div>' +
+      '<div class="pc-profit ' + st.cls + '">' + st.text + '</div>' +
       '<div class="pc-meta">' + p.sessions_played + ' sessions · ' + (p.sessions_played > 0 ? Math.round((p.wins || 0) / p.sessions_played * 100) : 0) + '% wins</div>' +
     '</div>';
   return card;

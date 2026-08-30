@@ -84,27 +84,29 @@ function profitClass(val) {
   return 'neutral';
 }
 
-// Wholesome standings — we celebrate winnings but never show how much
-// someone is down. Positive figures keep the dollar amount; a loss is
-// replaced with an encouraging, amount-free tag so no one gets demoralised.
-// Pass { wins } to surface a player's winning nights instead of a generic tag.
-function standing(val, opts = {}) {
+// Wholesome standings — we stay honest about who's up and who's down, but
+// never show how much someone has lost. Winnings keep the dollar amount;
+// a net loss shows an amount-free "In the red" so no one is demoralised by
+// a figure, without pretending everyone is winning.
+function standing(val) {
   const n = parseFloat(val) || 0;
   if (n > 0.005) return { cls: 'profit', text: formatMoney(n) };
-  if (n < -0.005) {
-    if (opts.wins > 0) return { cls: 'neutral', text: `🔥 ${opts.wins} win${opts.wins > 1 ? 's' : ''}` };
-    return { cls: 'neutral', text: `🎯 ${opts.tag || 'In the hunt'}` };
-  }
+  if (n < -0.005) return { cls: 'loss', text: 'In the red' };
   return { cls: 'neutral', text: 'Even' };
 }
 
-// Single-figure version (e.g. one night's result): winnings keep the
-// amount, a losing night shows a neutral dash instead of a red number.
+// Single-figure version (one night's result): a winning night keeps the
+// amount, a losing night shows a red ▼ (down, no value), even = —.
 function standingNight(val) {
   const n = parseFloat(val) || 0;
   if (n > 0.005) return { cls: 'profit', text: formatMoney(n) };
-  if (n < -0.005) return { cls: 'neutral', text: '—' };
-  return { cls: 'neutral', text: 'Even' };
+  if (n < -0.005) return { cls: 'loss', text: '▼' };
+  return { cls: 'neutral', text: '—' };
+}
+
+// Map a standing cls to the leaderboard cell colour class (.pos green / .neg pink).
+function standingCellCls(cls) {
+  return cls === 'profit' ? 'pos' : cls === 'loss' ? 'neg' : '';
 }
 
 function actionIcon(action) {
