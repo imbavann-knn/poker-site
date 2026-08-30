@@ -255,17 +255,19 @@ function renderResults() {
       <div class="card-header"><span class="card-title">Final Standings</span><button class="btn btn-sm btn-ghost" onclick="openResultsModal()">Edit Results</button></div>
       <div style="overflow-x:auto;">
         <table class="lb-table">
-          <thead class="lb-head"><tr><th>#</th><th>Player</th><th class="right">Profit / Loss</th></tr></thead>
+          <thead class="lb-head"><tr><th>#</th><th>Player</th><th class="right">Result</th></tr></thead>
           <tbody>
-            ${results.map((r, i) => `
+            ${results.map((r, i) => {
+              const night = standingNight(r.profit_loss);
+              return `
               <tr class="lb-row">
                 <td class="lb-rank ${i===0?'gold':''}">${String(i+1).padStart(2,'0')}</td>
                 <td><div class="lb-player"><div class="player-hex">${r.emoji||'♠'}</div><div><div class="player-name">${r.name}</div>${r.alias?`<div class="player-alias">"${r.alias}"</div>`:''}</div></div></td>
-                <td class="lb-profit ${parseFloat(r.profit_loss)>=0?'pos':'neg'}" style="text-align:right">${formatMoney(r.profit_loss)}</td>
-              </tr>`).join('')}
+                <td class="lb-profit ${night.cls==='profit'?'pos':''}" style="text-align:right">${night.text}</td>
+              </tr>`;}).join('')}
             <tr style="border-top:1px solid var(--pink-border);">
               <td colspan="2" style="padding:10px 16px;font-size:.72rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);">Balance Check</td>
-              <td style="text-align:right;padding:10px 16px;font-family:'Orbitron',monospace;font-size:.85rem;" class="${Math.abs(total)<0.01?'profit':'loss'}">${Math.abs(total)<0.01?'✓ Balanced':'⚠ '+formatMoney(total)}</td>
+              <td style="text-align:right;padding:10px 16px;font-family:'Orbitron',monospace;font-size:.85rem;" class="${Math.abs(total)<0.01?'profit':'loss'}">${Math.abs(total)<0.01?'✓ Balanced':'⚠ Off by $'+Math.abs(total).toFixed(2)}</td>
             </tr>
           </tbody>
         </table>

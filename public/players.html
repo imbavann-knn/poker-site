@@ -569,34 +569,42 @@ async function openPlayerDetail(id) {
         (p.alias ? '<div style="color:var(--muted);font-size:.9rem;margin-top:4px;">"' + p.alias + '"</div>' : '') +
         '<div style="font-size:.7rem;color:var(--muted);margin-top:6px;letter-spacing:.15em;">Member since ' + (p.joined_date ? formatDate(p.joined_date) : '—') + '</div>' +
       '</div>' +
-      '<div class="stats-grid-3 mb-24" style="gap:10px;">' +
-        '<div class="stat-box pink" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + formatMoney(s.total_profit) + '</span><span class="stat-lbl">Career P/L</span></div>' +
-        '<div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + s.sessions_played + '</span><span class="stat-lbl">Sessions</span></div>' +
-        '<div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + winRate + '%</span><span class="stat-lbl">Win Rate</span></div>' +
-      '</div>' +
-      '<div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:.82rem;padding:0 2px;">' +
-        '<span style="color:var(--muted);">Best: <span class="profit">' + formatMoney(s.best_session) + '</span></span>' +
-        '<span style="color:var(--muted);">Worst: <span class="loss">' + formatMoney(s.worst_session) + '</span></span>' +
-        '<span style="color:var(--muted);">' + s.wins + 'W · ' + s.losses + 'L</span>' +
-      '</div>' +
+      (function() {
+        const career = standing(s.total_profit, { wins: s.wins });
+        const best = standingNight(s.best_session);
+        return '<div class="stats-grid-3 mb-24" style="gap:10px;">' +
+          '<div class="stat-box pink" style="padding:16px;"><span class="stat-val ' + (career.cls === 'profit' ? 'profit' : '') + '" style="font-size:1.4rem;">' + career.text + '</span><span class="stat-lbl">Standing</span></div>' +
+          '<div class="stat-box cyan" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + s.sessions_played + '</span><span class="stat-lbl">Sessions</span></div>' +
+          '<div class="stat-box yellow" style="padding:16px;"><span class="stat-val" style="font-size:1.4rem;">' + winRate + '%</span><span class="stat-lbl">Win Rate</span></div>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;margin-bottom:16px;font-size:.82rem;padding:0 2px;">' +
+          '<span style="color:var(--muted);">Best night: <span class="' + best.cls + '">' + best.text + '</span></span>' +
+          '<span style="color:var(--muted);">Nights won: <span class="profit">' + s.wins + '</span></span>' +
+          '<span style="color:var(--muted);">' + s.sessions_played + ' played</span>' +
+        '</div>';
+      })() +
       (p.history && p.history.length
-        ? '<div class="pl-chart-wrap"><div class="pl-chart-label">Career P/L Curve</div><canvas id="pl-canvas" height="140"></canvas></div>' +
+        ? '<div class="pl-chart-wrap"><div class="pl-chart-label">Form — recent nights</div>' +
+            '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0;">' +
+              [...p.history].reverse().slice(-24).map(h => {
+                const won = h.profit_loss > 0.005;
+                return '<div title="' + formatDate(h.date) + (won ? ' · won' : '') + '" style="width:16px;height:16px;border-radius:50%;background:' + (won ? 'var(--green)' : 'rgba(255,255,255,.12)') + ';box-shadow:' + (won ? '0 0 8px var(--green)' : 'none') + ';flex-shrink:0;"></div>';
+              }).join('') +
+            '</div>' +
+            '<div style="font-size:.62rem;color:var(--muted);margin-top:8px;">🟢 = finished the night up · oldest to newest</div>' +
+          '</div>' +
           '<div style="font-size:.62rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;">Session History</div>' +
           '<div style="max-height:220px;overflow-y:auto;">' +
-            p.history.map(h =>
-              '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
+            p.history.map(h => {
+              const night = standingNight(h.profit_loss);
+              return '<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border-subtle);font-size:.82rem;">' +
                 '<span style="color:var(--muted);">' + formatDate(h.date) + (h.venue ? ' · ' + h.venue : '') + '</span>' +
-                '<span class="' + profitClass(h.profit_loss) + '">' + formatMoney(h.profit_loss) + '</span>' +
-              '</div>'
-            ).join('') +
+                '<span class="' + night.cls + '">' + night.text + '</span>' +
+              '</div>';
+            }).join('') +
           '</div>'
         : '<div style="color:var(--muted);text-align:center;padding:24px;font-size:.85rem;">No sessions recorded yet.</div>'
       );
-
-    // Draw P/L chart if history exists
-    if (p.history && p.history.length) {
-      requestAnimationFrame(() => drawPLChart(p.history));
-    }
 
     // Pre-fill edit form
     document.getElementById('edit-name').value = p.name || '';
@@ -622,139 +630,10 @@ async function openPlayerDetail(id) {
   } catch(e) { showToast('Error loading player', 'error'); }
 }
 
-// ——— P/L Chart ———
-function drawPLChart(history) {
-  const canvas = document.getElementById('pl-canvas');
-  if (!canvas) return;
-  const W = canvas.offsetWidth;
-  if (!W || W < 10) return; // not yet laid out — skip safely
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const H = 140;
-  canvas.width = W * dpr;
-  canvas.height = H * dpr;
-  const ctx = canvas.getContext('2d');
-  ctx.scale(dpr, dpr);
-
-  // Build cumulative P/L (history is newest-first, reverse for chart)
-  const sessions = [...history].reverse();
-  const points = [{ x: 0, y: 0, pl: 0, date: null }]; // start at $0
-  let running = 0;
-  sessions.forEach((h, i) => {
-    running += h.profit_loss;
-    points.push({ x: i + 1, y: running, pl: h.profit_loss, date: h.date });
-  });
-
-  const PAD = { t: 10, r: 14, b: 28, l: 52 };
-  const cw = W - PAD.l - PAD.r;
-  const ch = H - PAD.t - PAD.b;
-
-  const ys = points.map(p => p.y);
-  const yMin = Math.min(0, ...ys);
-  const yMax = Math.max(0, ...ys);
-  const yRange = yMax - yMin || 1;
-  if (points.length < 2) return; // need at least 2 sessions to draw a line
-  const xRange = points.length - 1;
-
-  const toX = i => PAD.l + (i / xRange) * cw;
-  const toY = v => PAD.t + ch - ((v - yMin) / yRange) * ch;
-  const zeroY = toY(0);
-
-  // Background
-  ctx.fillStyle = 'rgba(0,0,0,0)';
-  ctx.fillRect(0, 0, W, H);
-
-  // Grid lines
-  ctx.strokeStyle = 'rgba(255,255,255,.06)';
-  ctx.lineWidth = 1;
-  const ticks = 4;
-  for (let i = 0; i <= ticks; i++) {
-    const v = yMin + (yRange / ticks) * i;
-    const y = toY(v);
-    ctx.beginPath(); ctx.moveTo(PAD.l, y); ctx.lineTo(W - PAD.r, y); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.3)';
-    ctx.font = `${10}px "Orbitron", monospace`;
-    ctx.textAlign = 'right';
-    ctx.fillText((v >= 0 ? '+' : '') + v.toFixed(0), PAD.l - 6, y + 3.5);
-  }
-
-  // Zero line
-  ctx.strokeStyle = 'rgba(255,255,255,.25)';
-  ctx.setLineDash([4, 4]);
-  ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(PAD.l, zeroY); ctx.lineTo(W - PAD.r, zeroY); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Area fill (above zero = green tint, below = red tint)
-  if (points.length > 1) {
-    // Positive area
-    const gradPos = ctx.createLinearGradient(0, PAD.t, 0, zeroY);
-    gradPos.addColorStop(0, 'rgba(0,245,255,.22)');
-    gradPos.addColorStop(1, 'rgba(0,245,255,.02)');
-    ctx.fillStyle = gradPos;
-    ctx.beginPath();
-    ctx.moveTo(toX(0), zeroY);
-    points.forEach((p, i) => ctx.lineTo(toX(i), Math.min(toY(p.y), zeroY)));
-    ctx.lineTo(toX(points.length - 1), zeroY);
-    ctx.closePath(); ctx.fill();
-
-    // Negative area
-    const gradNeg = ctx.createLinearGradient(0, zeroY, 0, PAD.t + ch);
-    gradNeg.addColorStop(0, 'rgba(255,45,135,.04)');
-    gradNeg.addColorStop(1, 'rgba(255,45,135,.22)');
-    ctx.fillStyle = gradNeg;
-    ctx.beginPath();
-    ctx.moveTo(toX(0), zeroY);
-    points.forEach((p, i) => ctx.lineTo(toX(i), Math.max(toY(p.y), zeroY)));
-    ctx.lineTo(toX(points.length - 1), zeroY);
-    ctx.closePath(); ctx.fill();
-  }
-
-  // Line
-  const finalVal = points[points.length - 1]?.y || 0;
-  const lineColor = finalVal >= 0 ? '#00F5FF' : '#FF2D87';
-  ctx.strokeStyle = lineColor;
-  ctx.lineWidth = 2.5;
-  ctx.lineJoin = 'round';
-  ctx.shadowColor = lineColor;
-  ctx.shadowBlur = 8;
-  ctx.beginPath();
-  points.forEach((p, i) => i === 0 ? ctx.moveTo(toX(i), toY(p.y)) : ctx.lineTo(toX(i), toY(p.y)));
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-
-  // Dots at each session
-  points.forEach((p, i) => {
-    const dotColor = p.pl >= 0 ? '#00F5FF' : '#FF2D87';
-    ctx.fillStyle = dotColor;
-    ctx.shadowColor = dotColor; ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.arc(toX(i), toY(p.y), 3.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-  });
-
-  // X-axis session labels (show first, last, and evenly spaced up to 5)
-  ctx.fillStyle = 'rgba(255,255,255,.3)';
-  ctx.font = `9px "Exo 2", sans-serif`;
-  ctx.textAlign = 'center';
-  const labelIdxs = new Set([0, points.length - 1]);
-  if (points.length > 2) {
-    const step = Math.max(1, Math.floor(points.length / 4));
-    for (let i = step; i < points.length - 1; i += step) labelIdxs.add(i);
-  }
-  labelIdxs.forEach(i => {
-    const p = points[i];
-    if (!p) return;
-    const label = p.date ? p.date.slice(5) : '#' + (i + 1); // MM-DD
-    ctx.fillText(label, toX(i), H - 6);
-  });
-}
-
-function profitClass(v) { return v >= 0 ? 'profit' : 'loss'; }
 
 // ——— Render Player Grid ———
 function renderPlayerCard(p) {
-  const isPos = parseFloat(p.total_profit) >= 0;
+  const st = standing(p.total_profit, { wins: p.wins });
 
   // Photo or emoji avatar
   const photoHtml = p.photo
@@ -769,7 +648,7 @@ function renderPlayerCard(p) {
     '<div class="pc-body">' +
       '<div class="pc-name">' + p.name + '</div>' +
       '<div class="pc-alias">' + (p.alias ? '"' + p.alias + '"' : (p.sessions_played + ' session' + (p.sessions_played !== 1 ? 's' : ''))) + '</div>' +
-      '<div class="pc-profit ' + (isPos ? 'profit' : 'loss') + '">' + formatMoney(p.total_profit) + '</div>' +
+      '<div class="pc-profit ' + (st.cls === 'profit' ? 'profit' : 'neutral') + '">' + st.text + '</div>' +
       '<div class="pc-meta">' + p.sessions_played + ' sessions · ' + (p.sessions_played > 0 ? Math.round((p.wins || 0) / p.sessions_played * 100) : 0) + '% wins</div>' +
     '</div>';
   return card;

@@ -91,7 +91,6 @@ async function loadLeaderboard() {
       return;
     }
 
-    const maxAbs = Math.max(...leaderboard.map(p => Math.abs(p.total_profit)));
     el.innerHTML = `<table class="lb-table">
       <thead class="lb-head"><tr>
         <th style="width:40px">#</th>
@@ -100,14 +99,14 @@ async function loadLeaderboard() {
         <th class="lb-hide-mobile" style="text-align:center">Wins</th>
         <th class="lb-hide-mobile" style="text-align:center">Win %</th>
         <th class="lb-hide-mobile" style="text-align:center">Best</th>
-        <th class="lb-hide-mobile" style="min-width:100px;">Chart</th>
-        <th class="right">Net P/L</th>
+        <th class="lb-hide-mobile" style="min-width:100px;">Win Rate</th>
+        <th class="right">Standing</th>
       </tr></thead>
       <tbody>
         ${leaderboard.map((p, i) => {
-          const pct = maxAbs ? Math.abs(p.total_profit) / maxAbs * 100 : 0;
-          const isPos = parseFloat(p.total_profit) >= 0;
           const winRate = p.sessions_played > 0 ? Math.round(p.wins / p.sessions_played * 100) : 0;
+          const st = standing(p.total_profit, { wins: p.wins });
+          const best = standingNight(p.best_session);
           return `<tr class="lb-row">
             <td class="lb-rank ${i===0?'gold':''}">${String(i+1).padStart(2,'0')}</td>
             <td><div class="lb-player">
@@ -118,11 +117,11 @@ async function loadLeaderboard() {
             <td class="lb-games">${p.sessions_played}</td>
             <td class="lb-games lb-hide-mobile" style="color:var(--green)">${p.wins}</td>
             <td class="lb-games lb-hide-mobile">${winRate}%</td>
-            <td class="lb-games lb-hide-mobile ${parseFloat(p.best_session)>=0?'profit':'loss'}">${formatMoney(p.best_session)}</td>
+            <td class="lb-games lb-hide-mobile ${best.cls}">${best.text}</td>
             <td class="lb-bar-cell lb-hide-mobile"><div class="neon-bar-wrap">
-              <div class="neon-bar ${isPos?'profit':'loss'}" style="width:${Math.max(4,pct)}px;max-width:100px"></div>
+              <div class="neon-bar profit" style="width:${Math.max(4,winRate)}px;max-width:100px"></div>
             </div></td>
-            <td class="lb-profit ${isPos?'pos':'neg'}">${formatMoney(p.total_profit)}</td>
+            <td class="lb-profit ${st.cls==='profit'?'pos':'neutral'}">${st.text}</td>
           </tr>`;
         }).join('')}
       </tbody>
@@ -147,12 +146,12 @@ async function loadLeaderboard() {
           <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--cyan);margin-top:8px;">${mostGames?.sessions_played||0} games</div>
           <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Most dedicated</div>
         </div></div>
-      <div class="card"><div class="card-header"><span class="card-title">The Donator</span><span class="card-badge card-badge-pink">💸</span></div>
+      <div class="card"><div class="card-header"><span class="card-title">Heart of the Table</span><span class="card-badge card-badge-pink">💛</span></div>
         <div class="card-body" style="text-align:center;padding:24px;">
           <div class="player-hex" style="width:56px;height:56px;margin:0 auto 12px;font-size:1.5rem;">${bottom?.emoji||'♠'}</div>
           <div style="font-weight:700;font-size:1.1rem;">${bottom?.name||'—'}</div>
-          <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--pink);margin-top:8px;">${formatMoney(bottom?.total_profit||0)}</div>
-          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Thanks for the contribution 🙏</div>
+          <div style="font-family:'Orbitron',monospace;font-size:1.6rem;color:var(--pink);margin-top:8px;">${bottom?.sessions_played||0} games</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:4px;">Always at the table — the game's not the same without them 🙏</div>
         </div></div>
     `;
   } catch(e) { el.innerHTML = '<div class="empty-state"><h3>Error loading data</h3></div>'; }

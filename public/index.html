@@ -327,17 +327,16 @@ async function loadHome() {
       lbEl.innerHTML = '<div class="empty-state"><div class="icon">🃏</div><h3>No results yet</h3><p>Add your first session to get started!</p></div>';
       return;
     }
-    const maxAbs = Math.max(...leaderboard.map(p => Math.abs(p.total_profit)));
     lbEl.innerHTML = `<table class="lb-table">
       <thead class="lb-head"><tr>
         <th style="width:40px">#</th><th>Player</th>
         <th class="lb-hide-mobile" style="text-align:center">Games</th>
-        <th class="lb-hide-mobile">Chart</th>
-        <th class="right">Net P/L</th>
+        <th class="lb-hide-mobile">Win Rate</th>
+        <th class="right">Standing</th>
       </tr></thead>
       <tbody>${leaderboard.slice(0, 6).map((p, i) => {
-        const pct = maxAbs ? (Math.abs(p.total_profit) / maxAbs * 100) : 0;
-        const pos = parseFloat(p.total_profit) >= 0;
+        const winRate = p.sessions_played > 0 ? Math.round(p.wins / p.sessions_played * 100) : 0;
+        const st = standing(p.total_profit, { wins: p.wins });
         return `<tr class="lb-row">
           <td class="lb-rank ${i === 0 ? 'gold' : ''}">${String(i+1).padStart(2,'0')}</td>
           <td><div class="lb-player">
@@ -345,8 +344,8 @@ async function loadHome() {
             <div><div class="player-name">${p.name}</div><div class="player-alias">${p.alias||''}</div></div>
           </div></td>
           <td class="lb-games lb-hide-mobile">${p.sessions_played}</td>
-          <td class="lb-bar-cell lb-hide-mobile"><div class="neon-bar-wrap"><div class="neon-bar ${pos?'profit':'loss'}" style="width:${Math.max(4,pct)}px;max-width:100px"></div></div></td>
-          <td class="lb-profit ${pos?'pos':'neg'}">${formatMoney(p.total_profit)}</td>
+          <td class="lb-bar-cell lb-hide-mobile"><div class="neon-bar-wrap"><div class="neon-bar profit" style="width:${Math.max(4,winRate)}px;max-width:100px"></div></div></td>
+          <td class="lb-profit ${st.cls==='profit'?'pos':'neutral'}">${st.text}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;

@@ -84,6 +84,29 @@ function profitClass(val) {
   return 'neutral';
 }
 
+// Wholesome standings — we celebrate winnings but never show how much
+// someone is down. Positive figures keep the dollar amount; a loss is
+// replaced with an encouraging, amount-free tag so no one gets demoralised.
+// Pass { wins } to surface a player's winning nights instead of a generic tag.
+function standing(val, opts = {}) {
+  const n = parseFloat(val) || 0;
+  if (n > 0.005) return { cls: 'profit', text: formatMoney(n) };
+  if (n < -0.005) {
+    if (opts.wins > 0) return { cls: 'neutral', text: `🔥 ${opts.wins} win${opts.wins > 1 ? 's' : ''}` };
+    return { cls: 'neutral', text: `🎯 ${opts.tag || 'In the hunt'}` };
+  }
+  return { cls: 'neutral', text: 'Even' };
+}
+
+// Single-figure version (e.g. one night's result): winnings keep the
+// amount, a losing night shows a neutral dash instead of a red number.
+function standingNight(val) {
+  const n = parseFloat(val) || 0;
+  if (n > 0.005) return { cls: 'profit', text: formatMoney(n) };
+  if (n < -0.005) return { cls: 'neutral', text: '—' };
+  return { cls: 'neutral', text: 'Even' };
+}
+
 function actionIcon(action) {
   const icons = { create: '✦', update: '✎', delete: '✕' };
   return icons[action] || '•';
@@ -498,6 +521,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 const BLINDS_OPTIONS = [
   '0.05/0.10',
+  '0.10/0.10',
   '0.10/0.20',
   '0.25/0.50',
   '0.50/1.00',
@@ -506,7 +530,7 @@ const BLINDS_OPTIONS = [
   '5/10',
 ];
 
-function blindsSelect(selected = '0.10/0.20') {
+function blindsSelect(selected = '0.10/0.10') {
   return BLINDS_OPTIONS.map(b =>
     `<option value="${b}" ${b === selected ? 'selected' : ''}>$${b}</option>`
   ).join('') + `<option value="custom" ${!BLINDS_OPTIONS.includes(selected) ? 'selected' : ''}>Custom...</option>`;
